@@ -52,11 +52,12 @@ interface AutoRule {
 const RULE_STORAGE_KEY = "cashboard_auto_rules"
 
 export function AutomaticRules() {
-  const { accounts, goals, categories, addTransaction, updateAccount, updateGoal } = useFinance()
+  const { accounts, goals, categories } = useFinance()
   const { formatCurrency } = useCurrency()
   const [rules, setRules] = useState<AutoRule[]>([])
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   // Form state
   const [ruleName, setRuleName] = useState("")
@@ -72,23 +73,30 @@ export function AutomaticRules() {
 
   // Load rules from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(RULE_STORAGE_KEY)
-    if (saved) {
-      try {
+    try {
+      const saved = localStorage.getItem(RULE_STORAGE_KEY)
+      if (saved) {
         setRules(JSON.parse(saved))
-      } catch (e) {
-        console.error("[v0] Error loading rules:", e)
       }
+    } catch (e) {
+      console.error("[v0] Error loading rules:", e)
     }
+    setIsLoaded(true)
   }, [])
 
   // Save rules to localStorage
   const saveRules = (newRules: AutoRule[]) => {
     setRules(newRules)
-    localStorage.setItem(RULE_STORAGE_KEY, JSON.stringify(newRules))
+    try {
+      localStorage.setItem(RULE_STORAGE_KEY, JSON.stringify(newRules))
+    } catch (e) {
+      console.error("[v0] Error saving rules:", e)
+    }
   }
 
   const handleAddRule = () => {
+    if (!ruleName.trim()) return
+
     const newRule: AutoRule = {
       id: crypto.randomUUID(),
       name: ruleName,
@@ -145,7 +153,7 @@ export function AutomaticRules() {
       case "amount_above":
         return `Quando valor acima de ${formatCurrency(Number.parseFloat(trigger.value) || 0)}`
       case "category_match":
-        const cat = categories.find((c) => c.id === trigger.category)
+        const cat = categories?.find((c) => c.id === trigger.category)
         return `Quando categoria for "${cat?.name || trigger.category}"`
     }
   }
@@ -153,17 +161,17 @@ export function AutomaticRules() {
   const getActionLabel = (action: AutoRule["action"]) => {
     switch (action.type) {
       case "transfer_percentage":
-        const pctAccount = accounts.find((a) => a.id === action.targetAccountId)
-        const pctGoal = goals.find((g) => g.id === action.targetGoalId)
+        const pctAccount = accounts?.find((a) => a.id === action.targetAccountId)
+        const pctGoal = goals?.find((g) => g.id === action.targetGoalId)
         const target = pctGoal?.name || pctAccount?.name || "?"
         return `Transferir ${action.percentage}% para ${target}`
       case "transfer_fixed":
-        const fixAccount = accounts.find((a) => a.id === action.targetAccountId)
-        const fixGoal = goals.find((g) => g.id === action.targetGoalId)
+        const fixAccount = accounts?.find((a) => a.id === action.targetAccountId)
+        const fixGoal = goals?.find((g) => g.id === action.targetGoalId)
         const fixTarget = fixGoal?.name || fixAccount?.name || "?"
         return `Transferir ${formatCurrency(action.fixedAmount || 0)} para ${fixTarget}`
       case "auto_categorize":
-        const categ = categories.find((c) => c.id === action.categoryId)
+        const categ = categories?.find((c) => c.id === action.categoryId)
         return `Categorizar como "${categ?.name || action.categoryId}"`
       case "create_recurring":
         return "Criar transação recorrente"
@@ -180,6 +188,29 @@ export function AutomaticRules() {
       case "create_recurring":
         return <Repeat className="h-4 w-4" />
     }
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Zap className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-xl font-serif font-bold">Regras Automáticas</h3>
+              <p className="text-sm text-muted-foreground">Automatiza transferências e categorizações</p>
+            </div>
+          </div>
+        </div>
+        <Card className="bg-card/50 backdrop-blur-sm">
+          <CardContent className="flex items-center justify-center py-12">
+            <p className="text-muted-foreground">A carregar...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -201,7 +232,7 @@ export function AutomaticRules() {
               Nova Regra
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Criar Regra Automática</DialogTitle>
               <DialogDescription>Define quando e o que acontece automaticamente.</DialogDescription>
@@ -224,7 +255,7 @@ export function AutomaticRules() {
 
                 <div className="space-y-2">
                   <Label>Tipo de Gatilho</Label>
-                  <Select value={triggerType} onValueChange={(v) => setTriggerType(v as any)}>
+                  <Select value={triggerType} onValueChange={(v) => setTriggerType(v as AutoRule["trigger"]["type"])}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -279,7 +310,7 @@ export function AutomaticRules() {
                         <SelectValue placeholder="Selecionar categoria" />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map((cat) => (
+                        {(categories || []).map((cat) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             {cat.name}
                           </SelectItem>
@@ -302,7 +333,7 @@ export function AutomaticRules() {
 
                 <div className="space-y-2">
                   <Label>Ação</Label>
-                  <Select value={actionType} onValueChange={(v) => setActionType(v as any)}>
+                  <Select value={actionType} onValueChange={(v) => setActionType(v as AutoRule["action"]["type"])}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -321,7 +352,7 @@ export function AutomaticRules() {
                       <Select
                         value={targetGoalId || targetAccountId}
                         onValueChange={(v) => {
-                          if (goals.find((g) => g.id === v)) {
+                          if ((goals || []).find((g) => g.id === v)) {
                             setTargetGoalId(v)
                             setTargetAccountId("")
                           } else {
@@ -334,20 +365,24 @@ export function AutomaticRules() {
                           <SelectValue placeholder="Selecionar destino" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="" disabled>
-                            Contas
-                          </SelectItem>
-                          {accounts.map((acc) => (
-                            <SelectItem key={acc.id} value={acc.id}>
-                              {acc.name}
-                            </SelectItem>
-                          ))}
-                          {goals.length > 0 && (
+                          {(accounts || []).length > 0 && (
                             <>
-                              <SelectItem value="" disabled>
+                              <SelectItem value="_accounts_label" disabled className="font-semibold">
+                                Contas
+                              </SelectItem>
+                              {(accounts || []).map((acc) => (
+                                <SelectItem key={acc.id} value={acc.id}>
+                                  {acc.name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                          {(goals || []).length > 0 && (
+                            <>
+                              <SelectItem value="_goals_label" disabled className="font-semibold">
                                 Metas
                               </SelectItem>
-                              {goals.map((goal) => (
+                              {(goals || []).map((goal) => (
                                 <SelectItem key={goal.id} value={goal.id}>
                                   {goal.name}
                                 </SelectItem>
@@ -395,7 +430,7 @@ export function AutomaticRules() {
                         <SelectValue placeholder="Selecionar categoria" />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map((cat) => (
+                        {(categories || []).map((cat) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             {cat.name}
                           </SelectItem>
@@ -406,7 +441,7 @@ export function AutomaticRules() {
                 )}
               </div>
 
-              <Button onClick={handleAddRule} className="w-full" disabled={!ruleName}>
+              <Button onClick={handleAddRule} className="w-full" disabled={!ruleName.trim()}>
                 Criar Regra
               </Button>
             </div>

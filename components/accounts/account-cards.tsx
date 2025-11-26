@@ -40,12 +40,14 @@ import { AccountForm } from "./account-form"
 import { AccountTransferForm } from "./account-transfer-form"
 
 export function AccountCards() {
-  const { accounts, deleteAccount } = useFinance()
+  const { accounts, deleteAccount, getSummary } = useFinance()
   const { formatCurrency } = useCurrency()
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isTransferOpen, setIsTransferOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<(typeof accounts)[0] | null>(null)
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null)
+
+  const summary = getSummary()
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -130,7 +132,25 @@ export function AccountCards() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 grid-cols-2">
+        <div className="rounded-xl border border-border/50 bg-gradient-to-br from-investment/10 to-investment/5 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">Investimentos</p>
+            <TrendingUp className="h-4 w-4 text-investment" />
+          </div>
+          <p className="text-xl font-bold text-investment mt-1">{formatCurrency(summary.totalInvestment)}</p>
+        </div>
+        <div className="rounded-xl border border-border/50 bg-gradient-to-br from-savings/10 to-savings/5 p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-muted-foreground">Poupança</p>
+            <PiggyBank className="h-4 w-4 text-savings" />
+          </div>
+          <p className="text-xl font-bold text-savings mt-1">{formatCurrency(summary.totalSavings)}</p>
+          <p className="text-xs text-muted-foreground">Taxa: {summary.savingsRate.toFixed(1)}%</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {accounts.length === 0 ? (
           <Card className="col-span-full bg-card/50 backdrop-blur-sm border-border/50 border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-8 text-center">
