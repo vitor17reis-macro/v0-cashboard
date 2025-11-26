@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendIcon, XIcon, BotIcon, UserIcon, SparklesIcon } from "lucide-react"
+import { SendIcon, XIcon, BotIcon, UserIcon, Sparkles } from "lucide-react"
 import { useFinance } from "@/components/providers/finance-provider"
 import { useCurrency } from "@/contexts/currency-context"
 
@@ -19,32 +19,33 @@ interface ChatbotProps {
   onClose: () => void
 }
 
-// Predefined responses for common questions (fallback when no API)
 const PREDEFINED_RESPONSES: Record<string, string> = {
   "como adicionar transação":
-    "Para adicionar uma transação, clique no botão verde '+ Nova Transação' no canto superior direito. Pode escolher entre receita, despesa, investimento ou poupança.",
+    "Para adicionar uma transação, clique no botão verde '+ Nova Transação' na sidebar à esquerda. Pode escolher entre receita, despesa, investimento ou poupança.",
   "como criar categoria":
-    "Clique no ícone de etiqueta (tag) na barra superior. Abrirá um painel onde pode adicionar novas categorias de receita ou despesa com cores personalizadas.",
+    "Clique no ícone de etiqueta na sidebar. Abrirá um painel elegante onde pode adicionar novas categorias com cores personalizadas.",
   "como definir orçamento":
-    "Clique no ícone de engrenagem na barra superior para aceder à gestão de orçamentos. Pode definir limites mensais para cada categoria de despesa.",
+    "Clique no ícone de engrenagem na sidebar para aceder aos orçamentos. Verá cards interativos com barras de progresso para cada categoria.",
   "como criar meta":
-    "Na secção 'Metas Financeiras' do dashboard, clique no botão '+' para criar uma nova meta. Defina o nome, valor alvo, prazo e cor.",
+    "Na secção 'Metas Financeiras' do dashboard, clique no botão '+'. Defina nome, valor alvo, prazo e cor da meta.",
   "como transferir para meta":
-    "Em cada meta financeira, clique no botão verde 'Depositar' ou no menu de 3 pontos e selecione 'Depositar Dinheiro'. Escolha a conta de origem e o valor.",
+    "Em cada meta, clique no botão verde 'Depositar' para transferir dinheiro de uma conta para a meta.",
   "como criar conta":
-    "Na secção 'As Minhas Contas' do dashboard, clique no botão '+' para adicionar uma nova conta bancária (conta à ordem, poupança, investimentos, etc.).",
+    "Na secção 'As Minhas Contas', clique no '+' para criar nova conta. Todas as contas (à ordem, poupança, investimentos) funcionam da mesma forma.",
+  "como transferir entre contas":
+    "Na secção 'As Minhas Contas', clique no botão 'Transferir' para mover dinheiro entre qualquer tipo de conta.",
   "como ver histórico":
-    "Clique em 'Histórico' na barra de navegação para ver todas as suas transações. Pode filtrar por tipo e pesquisar por descrição.",
-  "como exportar dados":
-    "Clique no ícone de download na barra superior para exportar todas as suas transações em formato CSV.",
+    "Clique em 'Histórico' na sidebar para ver todas as transações. Pode arrastar transações para as reclassificar.",
+  "como exportar dados": "Clique no ícone de download na sidebar para exportar todas as suas transações em CSV.",
   "como reverter transação":
-    "Vá ao 'Histórico', encontre a transação que pretende anular e clique em 'Reverter'. Confirme a ação no diálogo que aparece.",
-  "o que são assinaturas":
-    "A secção 'Assinaturas' permite gerir pagamentos recorrentes como Netflix, Spotify, etc. Pode adicionar, pausar ou cancelar assinaturas.",
-  "como funciona previsão":
-    "A 'Previsão' calcula o seu saldo futuro baseado nas receitas e despesas recorrentes. Mostra uma projeção para os próximos 6 meses.",
+    "No 'Histórico', encontre a transação e clique em 'Reverter'. O dinheiro será devolvido às contas/metas originais.",
+  "o que são automações":
+    "As 'Automações' permitem criar regras como 'transferir 10% do salário para poupança' ou 'categorizar Netflix automaticamente'.",
+  "como comparar meses": "Clique em 'Comparação' na sidebar para ver gráficos lado-a-lado de dois meses diferentes.",
+  "o que são insights":
+    "Os 'Insights' na visão geral analisam os seus dados e dão sugestões personalizadas sobre gastos e poupanças.",
   ajuda:
-    "Posso ajudar com: adicionar transações, criar categorias, definir orçamentos, criar metas financeiras, transferir dinheiro para metas, ver histórico, exportar dados, e muito mais. O que gostaria de saber?",
+    "Posso ajudar com: transações, categorias, orçamentos, metas, transferências entre contas, histórico, automações, comparação de meses, e muito mais. O que gostaria de saber?",
 }
 
 export function Chatbot({ onClose }: ChatbotProps) {
@@ -53,14 +54,14 @@ export function Chatbot({ onClose }: ChatbotProps) {
       id: "welcome",
       role: "assistant",
       content:
-        "Olá! Sou o assistente do CashBoard. Posso ajudá-lo a compreender as funcionalidades da aplicação. O que gostaria de saber?",
+        "Olá! Sou o assistente do CashBoard VitoReis. Posso ajudá-lo com transferências entre contas, metas financeiras, automações, e todas as funcionalidades da aplicação. O que precisa?",
       timestamp: new Date(),
     },
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const { getSummary, transactions, accounts, goals } = useFinance()
+  const { getSummary, transactions = [], accounts = [], goals = [] } = useFinance()
   const { formatCurrency } = useCurrency()
   const summary = getSummary()
 
@@ -73,24 +74,23 @@ export function Chatbot({ onClose }: ChatbotProps) {
   const findBestResponse = (query: string): string => {
     const lowerQuery = query.toLowerCase()
 
-    // Check for financial data queries
+    // Financial data queries
     if (lowerQuery.includes("saldo") || lowerQuery.includes("tenho")) {
-      return `O seu património líquido atual é de ${formatCurrency(summary.totalNetWorth)}. Tem ${formatCurrency(summary.totalIncome)} em receitas e ${formatCurrency(summary.totalExpenses)} em despesas este mês.`
+      return `O seu património líquido é de ${formatCurrency(summary.totalNetWorth)}. Receitas: ${formatCurrency(summary.totalIncome)}, Despesas: ${formatCurrency(summary.totalExpenses)} este mês.`
     }
 
     if (lowerQuery.includes("transaç") && lowerQuery.includes("quant")) {
-      return `Tem ${transactions.length} transações registadas no total.`
+      return `Tem ${transactions.length} transações registadas.`
     }
 
     if (lowerQuery.includes("conta") && (lowerQuery.includes("quant") || lowerQuery.includes("tenho"))) {
-      return `Tem ${accounts.length} conta(s) registada(s). ${accounts.map((a) => `${a.name}: ${formatCurrency(a.balance)}`).join(", ")}.`
+      if (accounts.length === 0) return "Ainda não tem contas. Crie uma em 'As Minhas Contas'."
+      return `Tem ${accounts.length} conta(s): ${accounts.map((a) => `${a.name}: ${formatCurrency(a.balance)}`).join(", ")}.`
     }
 
     if (lowerQuery.includes("meta") && (lowerQuery.includes("quant") || lowerQuery.includes("tenho"))) {
-      if (goals.length === 0) {
-        return "Ainda não tem metas financeiras definidas. Pode criar uma na secção 'Metas Financeiras' do dashboard."
-      }
-      return `Tem ${goals.length} meta(s) financeira(s): ${goals.map((g) => `${g.name} (${formatCurrency(g.currentAmount)}/${formatCurrency(g.targetAmount)})`).join(", ")}.`
+      if (goals.length === 0) return "Ainda não tem metas. Crie uma em 'Metas Financeiras'."
+      return `Tem ${goals.length} meta(s): ${goals.map((g) => `${g.name} (${formatCurrency(g.currentAmount)}/${formatCurrency(g.targetAmount)})`).join(", ")}.`
     }
 
     // Check predefined responses
@@ -100,8 +100,7 @@ export function Chatbot({ onClose }: ChatbotProps) {
       }
     }
 
-    // Default response
-    return "Não tenho a certeza de como responder a isso. Pode perguntar sobre: como adicionar transações, criar categorias, definir orçamentos, criar metas, transferir dinheiro, ver histórico, ou exportar dados. Digite 'ajuda' para ver todas as opções."
+    return "Não tenho a certeza. Pode perguntar sobre: transferências entre contas, metas, automações, orçamentos, comparação de meses, ou exportar dados. Digite 'ajuda' para ver todas as opções."
   }
 
   const handleSend = async () => {
@@ -118,8 +117,7 @@ export function Chatbot({ onClose }: ChatbotProps) {
     setInput("")
     setIsLoading(true)
 
-    // Simulate thinking delay
-    await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500))
+    await new Promise((resolve) => setTimeout(resolve, 400 + Math.random() * 400))
 
     const response = findBestResponse(input.trim())
 
@@ -134,22 +132,22 @@ export function Chatbot({ onClose }: ChatbotProps) {
     setIsLoading(false)
   }
 
-  const quickQuestions = ["Como adicionar transação?", "Como criar uma meta?", "Qual o meu saldo?", "Ajuda"]
+  const quickQuestions = ["Como transferir entre contas?", "Como criar automação?", "Qual o meu saldo?", "Ajuda"]
 
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border/50 bg-gradient-to-r from-blue-500/10 to-purple-500/10">
+      <div className="flex items-center justify-between p-5 border-b border-border/50 bg-gradient-to-r from-violet-500/10 via-purple-500/10 to-fuchsia-500/10">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <SparklesIcon className="h-5 w-5 text-white" />
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 flex items-center justify-center shadow-lg">
+            <Sparkles className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold">Assistente CashBoard</h3>
-            <p className="text-xs text-muted-foreground">Sempre disponível para ajudar</p>
+            <h3 className="font-serif font-bold text-lg">Assistente CashBoard</h3>
+            <p className="text-xs text-muted-foreground">Sempre pronto a ajudar</p>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" onClick={onClose} className="rounded-xl">
           <XIcon className="h-5 w-5" />
         </Button>
       </div>
@@ -157,49 +155,53 @@ export function Chatbot({ onClose }: ChatbotProps) {
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+          {messages.map((message, index) => (
+            <div
+              key={message.id}
+              className={`flex gap-3 animate-in ${message.role === "user" ? "justify-end" : "justify-start"}`}
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
               {message.role === "assistant" && (
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-md">
                   <BotIcon className="h-4 w-4 text-white" />
                 </div>
               )}
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-br-md"
-                    : "bg-secondary text-secondary-foreground rounded-bl-md"
+                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                    : "bg-secondary text-secondary-foreground rounded-bl-sm"
                 }`}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                <p className="text-[10px] opacity-60 mt-1">
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                <p className="text-[10px] opacity-50 mt-1.5">
                   {message.timestamp.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}
                 </p>
               </div>
               {message.role === "user" && (
-                <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-primary to-teal-500 flex items-center justify-center shrink-0 shadow-md">
                   <UserIcon className="h-4 w-4 text-white" />
                 </div>
               )}
             </div>
           ))}
           {isLoading && (
-            <div className="flex gap-3 justify-start">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+            <div className="flex gap-3 justify-start animate-in">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0">
                 <BotIcon className="h-4 w-4 text-white" />
               </div>
-              <div className="bg-secondary rounded-2xl rounded-bl-md px-4 py-3">
-                <div className="flex gap-1">
+              <div className="bg-secondary rounded-2xl rounded-bl-sm px-4 py-4">
+                <div className="flex gap-1.5">
                   <span
-                    className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+                    className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce"
                     style={{ animationDelay: "0ms" }}
                   />
                   <span
-                    className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+                    className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce"
                     style={{ animationDelay: "150ms" }}
                   />
                   <span
-                    className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce"
+                    className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce"
                     style={{ animationDelay: "300ms" }}
                   />
                 </div>
@@ -210,14 +212,14 @@ export function Chatbot({ onClose }: ChatbotProps) {
       </ScrollArea>
 
       {/* Quick Questions */}
-      <div className="px-4 py-2 border-t border-border/50">
-        <p className="text-xs text-muted-foreground mb-2">Perguntas rápidas:</p>
+      <div className="px-4 py-3 border-t border-border/50">
+        <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider">Perguntas rápidas</p>
         <div className="flex flex-wrap gap-2">
           {quickQuestions.map((question) => (
             <button
               key={question}
               onClick={() => setInput(question)}
-              className="text-xs px-3 py-1.5 rounded-full bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-colors"
+              className="text-xs px-3 py-2 rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground transition-all duration-300 hover:scale-105"
             >
               {question}
             </button>
@@ -238,10 +240,10 @@ export function Chatbot({ onClose }: ChatbotProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Escreva a sua pergunta..."
-            className="flex-1"
+            className="flex-1 h-11 rounded-xl"
             disabled={isLoading}
           />
-          <Button type="submit" size="icon" disabled={!input.trim() || isLoading}>
+          <Button type="submit" size="icon" className="h-11 w-11 rounded-xl" disabled={!input.trim() || isLoading}>
             <SendIcon className="h-4 w-4" />
           </Button>
         </form>

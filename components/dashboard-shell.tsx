@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import {
@@ -20,6 +19,8 @@ import {
   GitCompareArrows,
   ChevronLeft,
   ChevronRight,
+  Sun,
+  Moon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -35,12 +36,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ThemeToggle } from "@/components/settings/theme-toggle"
 import { BudgetManager } from "@/components/settings/budget-manager"
 import { CategoryManager } from "@/components/settings/category-manager"
 import { TransactionForm } from "@/components/transactions/transaction-form"
@@ -53,6 +52,7 @@ import { CurrencySelector } from "@/components/settings/currency-selector"
 import { Chatbot } from "@/components/chatbot/chatbot"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useTheme } from "next-themes"
 
 const NAV_ITEMS = [
   { href: "/", icon: LayoutDashboardIcon, label: "Visão Geral" },
@@ -78,6 +78,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
+  const { theme, setTheme } = useTheme()
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -110,7 +111,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
       const link = document.createElement("a")
       const url = URL.createObjectURL(blob)
       link.setAttribute("href", url)
-      link.setAttribute("download", `financas_export_${new Date().toISOString().split("T")[0]}.csv`)
+      link.setAttribute("download", `cashboard_export_${new Date().toISOString().split("T")[0]}.csv`)
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -128,7 +129,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         <BudgetToastNotifications />
 
         {/* Mobile Header */}
-        <header className="lg:hidden sticky top-0 z-50 w-full border-b border-border/30 bg-background/80 backdrop-blur-xl">
+        <header className="lg:hidden sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl">
           <div className="px-4 h-14 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
@@ -137,17 +138,22 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                     <MenuIcon className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[280px] p-0 bg-background/95 backdrop-blur-xl">
-                  <SheetHeader className="p-4 border-b border-border/30">
-                    <SheetTitle className="flex items-center gap-2">
-                      <div className="h-8 w-8 bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
-                        <span className="text-white font-serif font-bold text-sm">C</span>
+                <SheetContent side="left" className="w-[280px] p-0 bg-sidebar text-sidebar-foreground">
+                  <SheetHeader className="p-6 border-b border-sidebar-border">
+                    <SheetTitle className="flex items-center gap-3 text-sidebar-foreground">
+                      <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary via-primary to-teal-400 flex items-center justify-center shadow-lg glow-primary">
+                        <span className="text-white font-serif font-bold text-lg">C</span>
                       </div>
-                      <span className="font-serif">CashBoard</span>
+                      <div className="flex flex-col items-start">
+                        <span className="font-serif font-bold text-lg">CashBoard</span>
+                        <span className="text-[10px] text-sidebar-foreground/60 tracking-[0.2em] uppercase">
+                          VitoReis
+                        </span>
+                      </div>
                     </SheetTitle>
                     <SheetDescription className="sr-only">Navegação principal</SheetDescription>
                   </SheetHeader>
-                  <nav className="flex flex-col gap-1 p-3">
+                  <nav className="flex flex-col gap-1 p-4">
                     {NAV_ITEMS.map((item) => {
                       const Icon = item.icon
                       const isActive = pathname === item.href
@@ -159,10 +165,10 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                             setIsMobileMenuOpen(false)
                           }}
                           className={cn(
-                            "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200",
+                            "flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-300",
                             isActive
-                              ? "bg-primary text-primary-foreground shadow-lg"
-                              : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
+                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                           )}
                         >
                           <Icon className="h-5 w-5" />
@@ -175,33 +181,31 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
               </Sheet>
 
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-teal-400 flex items-center justify-center shadow-lg">
                   <span className="text-white font-serif font-bold text-sm">C</span>
                 </div>
-                <span className="font-serif font-bold text-base">CashBoard</span>
+                <span className="font-serif font-bold">CashBoard</span>
               </div>
             </div>
 
             <div className="flex items-center gap-1">
-              <CurrencySelector />
               <BudgetAlerts />
-              <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
-                    <Avatar className="h-7 w-7 ring-2 ring-primary/20">
-                      <AvatarFallback className="bg-gradient-to-br from-emerald-400 to-teal-600 text-white text-xs">
+                    <Avatar className="h-8 w-8 ring-2 ring-primary/20">
+                      <AvatarFallback className="bg-gradient-to-br from-primary to-teal-400 text-white text-xs font-bold">
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>
+                  <div className="px-3 py-2">
                     <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                  </DropdownMenuLabel>
+                  </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500">
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                     <LogOutIcon className="mr-2 h-4 w-4" />
                     Sair
                   </DropdownMenuItem>
@@ -212,28 +216,29 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         </header>
 
         <div className="flex">
-          {/* Desktop Sidebar */}
           <aside
             className={cn(
-              "hidden lg:flex flex-col fixed left-0 top-0 z-50 h-screen border-r border-border/30 bg-background/80 backdrop-blur-xl transition-all duration-300",
-              isSidebarCollapsed ? "w-[72px]" : "w-[240px]",
+              "hidden lg:flex flex-col fixed left-0 top-0 z-50 h-screen bg-sidebar text-sidebar-foreground transition-all duration-300",
+              isSidebarCollapsed ? "w-[72px]" : "w-[260px]",
             )}
           >
             {/* Logo */}
             <div
               className={cn(
-                "h-16 flex items-center border-b border-border/30 px-4",
+                "h-20 flex items-center border-b border-sidebar-border px-4",
                 isSidebarCollapsed ? "justify-center" : "justify-between",
               )}
             >
-              <div className="flex items-center gap-2 cursor-pointer group" onClick={() => router.push("/")}>
-                <div className="h-9 w-9 bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30 transition-transform duration-300 group-hover:scale-105">
-                  <span className="text-white font-serif font-bold">C</span>
+              <div className="flex items-center gap-3 cursor-pointer group" onClick={() => router.push("/")}>
+                <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-primary via-primary to-teal-400 flex items-center justify-center shadow-lg glow-primary transition-transform duration-300 group-hover:scale-105">
+                  <span className="text-white font-serif font-bold text-xl">C</span>
                 </div>
                 {!isSidebarCollapsed && (
                   <div className="flex flex-col">
-                    <span className="font-serif font-bold text-lg leading-none">CashBoard</span>
-                    <span className="text-[10px] text-muted-foreground tracking-[0.15em] uppercase">VitoReis</span>
+                    <span className="font-serif font-bold text-xl leading-none text-sidebar-foreground">CashBoard</span>
+                    <span className="text-[10px] text-sidebar-foreground/50 tracking-[0.2em] uppercase mt-0.5">
+                      VitoReis
+                    </span>
                   </div>
                 )}
               </div>
@@ -241,7 +246,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-muted-foreground"
+                  className="h-8 w-8 text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                   onClick={() => setIsSidebarCollapsed(true)}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -250,8 +255,8 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-              {NAV_ITEMS.map((item) => {
+            <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+              {NAV_ITEMS.map((item, index) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
                 return isSidebarCollapsed ? (
@@ -260,10 +265,10 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                       <button
                         onClick={() => router.push(item.href)}
                         className={cn(
-                          "w-full flex items-center justify-center p-3 rounded-xl transition-all duration-200",
+                          "w-full flex items-center justify-center p-3 rounded-xl transition-all duration-300",
                           isActive
-                            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                            ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
+                            : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                         )}
                       >
                         <Icon className="h-5 w-5" />
@@ -278,11 +283,12 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                     key={item.href}
                     onClick={() => router.push(item.href)}
                     className={cn(
-                      "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300",
                       isActive
-                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
+                        : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground",
                     )}
+                    style={{ animationDelay: `${index * 30}ms` }}
                   >
                     <Icon className="h-5 w-5 flex-shrink-0" />
                     <span>{item.label}</span>
@@ -291,23 +297,22 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
               })}
             </nav>
 
-            {/* Bottom Actions */}
-            <div className="border-t border-border/30 p-3 space-y-2">
+            <div className="border-t border-sidebar-border p-4 space-y-3">
               {/* Add Transaction Button */}
               <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                 <DialogTrigger asChild>
                   {isSidebarCollapsed ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button className="w-full h-10 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25">
+                        <Button className="w-full h-11 rounded-xl bg-gradient-to-r from-primary to-teal-500 hover:from-primary/90 hover:to-teal-500/90 shadow-lg glow-primary">
                           <PlusIcon className="h-5 w-5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent side="right">Nova Transação</TooltipContent>
                     </Tooltip>
                   ) : (
-                    <Button className="w-full gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25">
-                      <PlusIcon className="h-4 w-4" />
+                    <Button className="w-full h-11 gap-2 rounded-xl bg-gradient-to-r from-primary to-teal-500 hover:from-primary/90 hover:to-teal-500/90 shadow-lg glow-primary font-semibold">
+                      <PlusIcon className="h-5 w-5" />
                       Nova Transação
                     </Button>
                   )}
@@ -321,38 +326,44 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                 </DialogContent>
               </Dialog>
 
-              {/* Settings Row */}
-              <div className={cn("flex items-center gap-1", isSidebarCollapsed ? "flex-col" : "justify-between")}>
+              <div className={cn("grid gap-1", isSidebarCollapsed ? "grid-cols-1" : "grid-cols-4")}>
                 {isSidebarCollapsed ? (
                   <>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={handleExport}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                          onClick={handleExport}
+                        >
                           <DownloadIcon className="h-4 w-4" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="right">Exportar CSV</TooltipContent>
+                      <TooltipContent side="right">Exportar</TooltipContent>
                     </Tooltip>
 
                     <Sheet>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <SheetTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                            >
                               <TagIcon className="h-4 w-4" />
                             </Button>
                           </SheetTrigger>
                         </TooltipTrigger>
                         <TooltipContent side="right">Categorias</TooltipContent>
                       </Tooltip>
-                      <SheetContent>
-                        <SheetHeader>
-                          <SheetTitle>Categorias</SheetTitle>
-                          <SheetDescription>Adicione ou remova categorias.</SheetDescription>
+                      <SheetContent className="w-[420px] sm:w-[500px] overflow-y-auto">
+                        <SheetHeader className="mb-6">
+                          <SheetTitle className="font-serif text-2xl">Categorias</SheetTitle>
+                          <SheetDescription>Gerencie as suas categorias de receita e despesa.</SheetDescription>
                         </SheetHeader>
-                        <div className="mt-6">
-                          <CategoryManager />
-                        </div>
+                        <CategoryManager />
                       </SheetContent>
                     </Sheet>
 
@@ -360,21 +371,23 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <SheetTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-9 w-9">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                            >
                               <SettingsIcon className="h-4 w-4" />
                             </Button>
                           </SheetTrigger>
                         </TooltipTrigger>
                         <TooltipContent side="right">Orçamentos</TooltipContent>
                       </Tooltip>
-                      <SheetContent className="w-[400px] sm:w-[450px]">
-                        <SheetHeader>
-                          <SheetTitle>Orçamentos</SheetTitle>
-                          <SheetDescription>Defina limites mensais por categoria.</SheetDescription>
+                      <SheetContent className="w-[420px] sm:w-[500px] overflow-y-auto">
+                        <SheetHeader className="mb-6">
+                          <SheetTitle className="font-serif text-2xl">Orçamentos</SheetTitle>
+                          <SheetDescription>Defina limites mensais para controlar os seus gastos.</SheetDescription>
                         </SheetHeader>
-                        <div className="mt-6">
-                          <BudgetManager />
-                        </div>
+                        <BudgetManager />
                       </SheetContent>
                     </Sheet>
 
@@ -383,7 +396,21 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-9 w-9"
+                          className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                        >
+                          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">Tema</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
                           onClick={() => setIsSidebarCollapsed(false)}
                         >
                           <ChevronRight className="h-4 w-4" />
@@ -394,92 +421,123 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
-                        onClick={handleExport}
-                        title="Exportar CSV"
-                      >
-                        <DownloadIcon className="h-4 w-4" />
-                      </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-xl"
+                          onClick={handleExport}
+                        >
+                          <DownloadIcon className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Exportar CSV</TooltipContent>
+                    </Tooltip>
 
-                      <Sheet>
-                        <SheetTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-9 w-9" title="Categorias">
-                            <TagIcon className="h-4 w-4" />
-                          </Button>
-                        </SheetTrigger>
-                        <SheetContent>
-                          <SheetHeader>
-                            <SheetTitle>Categorias</SheetTitle>
-                            <SheetDescription>Adicione ou remova categorias.</SheetDescription>
-                          </SheetHeader>
-                          <div className="mt-6">
-                            <CategoryManager />
-                          </div>
-                        </SheetContent>
-                      </Sheet>
+                    <Sheet>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <SheetTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-xl"
+                            >
+                              <TagIcon className="h-4 w-4" />
+                            </Button>
+                          </SheetTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>Categorias</TooltipContent>
+                      </Tooltip>
+                      <SheetContent className="w-[420px] sm:w-[500px] overflow-y-auto">
+                        <SheetHeader className="mb-6">
+                          <SheetTitle className="font-serif text-2xl">Categorias</SheetTitle>
+                          <SheetDescription>Gerencie as suas categorias de receita e despesa.</SheetDescription>
+                        </SheetHeader>
+                        <CategoryManager />
+                      </SheetContent>
+                    </Sheet>
 
-                      <Sheet>
-                        <SheetTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-9 w-9" title="Orçamentos">
-                            <SettingsIcon className="h-4 w-4" />
-                          </Button>
-                        </SheetTrigger>
-                        <SheetContent className="w-[400px] sm:w-[450px]">
-                          <SheetHeader>
-                            <SheetTitle>Orçamentos</SheetTitle>
-                            <SheetDescription>Defina limites mensais por categoria.</SheetDescription>
-                          </SheetHeader>
-                          <div className="mt-6">
-                            <BudgetManager />
-                          </div>
-                        </SheetContent>
-                      </Sheet>
-                    </div>
+                    <Sheet>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <SheetTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-xl"
+                            >
+                              <SettingsIcon className="h-4 w-4" />
+                            </Button>
+                          </SheetTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>Orçamentos</TooltipContent>
+                      </Tooltip>
+                      <SheetContent className="w-[420px] sm:w-[500px] overflow-y-auto">
+                        <SheetHeader className="mb-6">
+                          <SheetTitle className="font-serif text-2xl">Orçamentos</SheetTitle>
+                          <SheetDescription>Defina limites mensais para controlar os seus gastos.</SheetDescription>
+                        </SheetHeader>
+                        <BudgetManager />
+                      </SheetContent>
+                    </Sheet>
 
-                    <div className="flex items-center gap-1">
-                      <CurrencySelector />
-                      <BudgetAlerts />
-                      <ThemeToggle />
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-full text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent rounded-xl"
+                          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                        >
+                          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Alternar tema</TooltipContent>
+                    </Tooltip>
                   </>
                 )}
               </div>
 
-              {/* User */}
+              {!isSidebarCollapsed && (
+                <div className="flex items-center justify-between pt-2">
+                  <CurrencySelector />
+                  <BudgetAlerts />
+                </div>
+              )}
+
+              {/* User Profile */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     className={cn(
-                      "w-full flex items-center gap-3 p-2 rounded-xl transition-all duration-200 hover:bg-secondary",
-                      isSidebarCollapsed && "justify-center",
+                      "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-300 hover:bg-sidebar-accent",
+                      isSidebarCollapsed ? "justify-center" : "",
                     )}
                   >
-                    <Avatar className="h-8 w-8 ring-2 ring-primary/20">
-                      <AvatarFallback className="bg-gradient-to-br from-emerald-400 to-teal-600 text-white text-xs font-medium">
+                    <Avatar className="h-9 w-9 ring-2 ring-sidebar-border">
+                      <AvatarFallback className="bg-gradient-to-br from-primary to-teal-400 text-white text-sm font-bold">
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
                     {!isSidebarCollapsed && (
-                      <div className="flex-1 text-left">
-                        <p className="text-sm font-medium truncate">{user.email?.split("@")[0]}</p>
-                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                      <div className="flex flex-col items-start overflow-hidden">
+                        <span className="text-sm font-medium text-sidebar-foreground truncate max-w-[140px]">
+                          {user.email?.split("@")[0]}
+                        </span>
+                        <span className="text-xs text-sidebar-foreground/50 truncate max-w-[140px]">{user.email}</span>
                       </div>
                     )}
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align={isSidebarCollapsed ? "center" : "end"} side="top" className="w-56">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">A minha conta</p>
-                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                    </div>
-                  </DropdownMenuLabel>
+                <DropdownMenuContent align="end" side={isSidebarCollapsed ? "right" : "top"} className="w-56">
+                  <div className="px-3 py-2">
+                    <p className="text-sm font-medium">{user.email?.split("@")[0]}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                  </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-500 focus:text-red-500 cursor-pointer">
+                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                     <LogOutIcon className="mr-2 h-4 w-4" />
                     Sair
                   </DropdownMenuItem>
@@ -492,61 +550,39 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
           <main
             className={cn(
               "flex-1 min-h-screen transition-all duration-300",
-              "lg:ml-[240px]",
-              isSidebarCollapsed && "lg:ml-[72px]",
+              isSidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[260px]",
             )}
           >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {children}
-            </div>
+            <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 animate-in">{children}</div>
           </main>
         </div>
 
         {/* Mobile FAB */}
-        <div className="lg:hidden fixed bottom-6 right-6 z-50">
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button
-                size="icon"
-                className="h-14 w-14 rounded-full shadow-2xl shadow-emerald-500/30 bg-gradient-to-br from-emerald-400 to-teal-600 hover:from-emerald-500 hover:to-teal-700 transition-all duration-300 hover:scale-110"
-              >
-                <PlusIcon className="h-6 w-6 text-white" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle className="font-serif text-xl">Adicionar Transação</DialogTitle>
-                <DialogDescription>Registe uma nova receita, despesa ou investimento.</DialogDescription>
-              </DialogHeader>
-              <TransactionForm onSuccess={() => setIsAddOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        </div>
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger asChild>
+            <Button
+              className="lg:hidden fixed right-4 bottom-4 h-14 w-14 rounded-full shadow-2xl bg-gradient-to-r from-primary to-teal-500 hover:from-primary/90 hover:to-teal-500/90 z-50 glow-primary"
+              size="icon"
+            >
+              <PlusIcon className="h-6 w-6" />
+            </Button>
+          </DialogTrigger>
+        </Dialog>
 
-        {/* Floating chatbot button - Desktop only */}
-        <div className="fixed bottom-6 right-6 z-50 hidden lg:block">
-          <Sheet open={isChatOpen} onOpenChange={setIsChatOpen}>
-            <SheetTrigger asChild>
-              <Button
-                size="icon"
-                className="h-14 w-14 rounded-full shadow-2xl shadow-blue-500/30 bg-gradient-to-br from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 transition-all duration-300 hover:scale-110"
-              >
-                <svg
-                  className="h-6 w-6 text-white"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[400px] sm:w-[450px] p-0">
-              <Chatbot onClose={() => setIsChatOpen(false)} />
-            </SheetContent>
-          </Sheet>
-        </div>
+        {/* Chatbot */}
+        <Sheet open={isChatOpen} onOpenChange={setIsChatOpen}>
+          <SheetTrigger asChild>
+            <Button
+              className="fixed right-4 bottom-20 lg:bottom-4 h-12 w-12 rounded-full shadow-2xl bg-gradient-to-br from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 z-40"
+              size="icon"
+            >
+              <span className="text-lg">✨</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="w-[400px] sm:w-[450px] p-0">
+            <Chatbot onClose={() => setIsChatOpen(false)} />
+          </SheetContent>
+        </Sheet>
       </div>
     </TooltipProvider>
   )

@@ -4,77 +4,97 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Light Mode - Soft pastel/cream aesthetic */
-  --background: #faf8f5;
-  --foreground: #1a1a1a;
-  --card: #ffffff;
-  --card-foreground: #1a1a1a;
-  --popover: #ffffff;
-  --popover-foreground: #1a1a1a;
-  --primary: #059669;
+  /* Light Mode - Warm sand/terracotta palette inspired by Awwwards */
+  --background: #f5f0e8;
+  --foreground: #1c1917;
+  --card: #faf7f2;
+  --card-foreground: #1c1917;
+  --popover: #faf7f2;
+  --popover-foreground: #1c1917;
+  --primary: #0d9488;
   --primary-foreground: #ffffff;
-  --secondary: #f0ebe3;
-  --secondary-foreground: #1a1a1a;
-  --muted: #f5f1eb;
-  --muted-foreground: #6b6b6b;
-  --accent: #e8e0d5;
+  --secondary: #e7e0d5;
+  --secondary-foreground: #44403c;
+  --muted: #ebe5db;
+  --muted-foreground: #78716c;
+  --accent: #d6cfc3;
   --accent-foreground: #0f766e;
-  --destructive: #ef4444;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e5ded4;
-  --input: #e5ded4;
-  --ring: #059669;
+  --border: #d6cfc3;
+  --input: #d6cfc3;
+  --ring: #0d9488;
 
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
   /* Finance Specific Colors */
   --income: #059669;
   --expense: #dc2626;
-  --investment: #2563eb;
-  --savings: #d97706;
+  --investment: #7c3aed;
+  --savings: #0891b2;
 
   /* Charts */
-  --chart-1: #059669;
-  --chart-2: #dc2626;
-  --chart-3: #2563eb;
-  --chart-4: #d97706;
-  --chart-5: #0d9488;
+  --chart-1: #0d9488;
+  --chart-2: #f97316;
+  --chart-3: #7c3aed;
+  --chart-4: #0891b2;
+  --chart-5: #ec4899;
+
+  /* Sidebar */
+  --sidebar: #1c1917;
+  --sidebar-foreground: #fafaf9;
+  --sidebar-primary: #0d9488;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #292524;
+  --sidebar-accent-foreground: #fafaf9;
+  --sidebar-border: #292524;
+  --sidebar-ring: #0d9488;
 }
 
 .dark {
-  /* Dark Mode - Deep Teal/Emerald aesthetic */
-  --background: #021212;
-  --foreground: #e2e8f0;
-  --card: #041c1c;
-  --card-foreground: #e2e8f0;
-  --popover: #041c1c;
-  --popover-foreground: #e2e8f0;
-  --primary: #34d399;
-  --primary-foreground: #021212;
-  --secondary: #112929;
-  --secondary-foreground: #34d399;
-  --muted: #0f3535;
-  --muted-foreground: #94a3b8;
-  --accent: #0f3535;
-  --accent-foreground: #34d399;
-  --destructive: #7f1d1d;
+  /* Dark Mode - Deep emerald/noir aesthetic */
+  --background: #0c0a09;
+  --foreground: #fafaf9;
+  --card: #1c1917;
+  --card-foreground: #fafaf9;
+  --popover: #1c1917;
+  --popover-foreground: #fafaf9;
+  --primary: #2dd4bf;
+  --primary-foreground: #042f2e;
+  --secondary: #292524;
+  --secondary-foreground: #fafaf9;
+  --muted: #292524;
+  --muted-foreground: #a8a29e;
+  --accent: #44403c;
+  --accent-foreground: #2dd4bf;
+  --destructive: #991b1b;
   --destructive-foreground: #fecaca;
-  --border: #134e4a;
-  --input: #134e4a;
-  --ring: #34d399;
+  --border: #44403c;
+  --input: #44403c;
+  --ring: #2dd4bf;
 
   /* Finance Colors - Vibrant on dark */
   --income: #34d399;
   --expense: #f87171;
-  --investment: #60a5fa;
-  --savings: #fbbf24;
+  --investment: #a78bfa;
+  --savings: #22d3ee;
 
   /* Charts */
-  --chart-1: #34d399;
-  --chart-2: #f87171;
-  --chart-3: #60a5fa;
-  --chart-4: #fbbf24;
-  --chart-5: #2dd4bf;
+  --chart-1: #2dd4bf;
+  --chart-2: #fb923c;
+  --chart-3: #a78bfa;
+  --chart-4: #22d3ee;
+  --chart-5: #f472b6;
+
+  /* Sidebar */
+  --sidebar: #0c0a09;
+  --sidebar-foreground: #fafaf9;
+  --sidebar-primary: #2dd4bf;
+  --sidebar-primary-foreground: #042f2e;
+  --sidebar-accent: #1c1917;
+  --sidebar-accent-foreground: #fafaf9;
+  --sidebar-border: #292524;
+  --sidebar-ring: #2dd4bf;
 }
 
 @theme inline {
@@ -132,16 +152,16 @@
   }
 }
 
-/* Smooth animations */
+/* Premium animations inspired by Awwwards */
 @layer utilities {
   .animate-in {
-    animation: animateIn 0.5s ease-out forwards;
+    animation: animateIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   @keyframes animateIn {
     from {
       opacity: 0;
-      transform: translateY(10px);
+      transform: translateY(20px);
     }
     to {
       opacity: 1;
@@ -149,28 +169,73 @@
     }
   }
 
+  /* Stagger animation for lists */
+  .stagger-1 {
+    animation-delay: 50ms;
+  }
+  .stagger-2 {
+    animation-delay: 100ms;
+  }
+  .stagger-3 {
+    animation-delay: 150ms;
+  }
+  .stagger-4 {
+    animation-delay: 200ms;
+  }
+  .stagger-5 {
+    animation-delay: 250ms;
+  }
+
   /* Glassmorphism utility */
   .glass {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(250, 247, 242, 0.8);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
   }
 
   .dark .glass {
-    background: rgba(4, 28, 28, 0.7);
+    background: rgba(28, 25, 23, 0.8);
   }
 
-  /* Smooth hover transitions */
+  /* Premium hover effect */
   .hover-lift {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .hover-lift:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.15);
   }
 
   .dark .hover-lift:hover {
-    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Glow effect for primary elements */
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(13, 148, 136, 0.3);
+  }
+
+  .dark .glow-primary {
+    box-shadow: 0 0 20px rgba(45, 212, 191, 0.3);
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, #0d9488 0%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Noise texture overlay */
+  .noise::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 1;
   }
 }
