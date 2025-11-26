@@ -4,34 +4,34 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Light Mode - Soft pastel/cream aesthetic instead of harsh whites */
-  --background: #faf8f5; /* Warm cream */
-  --foreground: #1a1a1a; /* Soft black */
+  /* Light Mode - Soft pastel/cream aesthetic */
+  --background: #faf8f5;
+  --foreground: #1a1a1a;
   --card: #ffffff;
   --card-foreground: #1a1a1a;
   --popover: #ffffff;
   --popover-foreground: #1a1a1a;
-  --primary: #059669; /* Emerald 600 */
+  --primary: #059669;
   --primary-foreground: #ffffff;
-  --secondary: #f0ebe3; /* Warm beige */
+  --secondary: #f0ebe3;
   --secondary-foreground: #1a1a1a;
-  --muted: #f5f1eb; /* Soft cream */
+  --muted: #f5f1eb;
   --muted-foreground: #6b6b6b;
-  --accent: #e8e0d5; /* Warm accent */
+  --accent: #e8e0d5;
   --accent-foreground: #0f766e;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #e5ded4; /* Warm border */
+  --border: #e5ded4;
   --input: #e5ded4;
   --ring: #059669;
 
   --radius: 0.625rem;
 
   /* Finance Specific Colors */
-  --income: #059669; /* Emerald 600 */
-  --expense: #dc2626; /* Red 600 */
-  --investment: #2563eb; /* Blue 600 */
-  --savings: #d97706; /* Amber 600 */
+  --income: #059669;
+  --expense: #dc2626;
+  --investment: #2563eb;
+  --savings: #d97706;
 
   /* Charts */
   --chart-1: #059669;
@@ -43,13 +43,13 @@
 
 .dark {
   /* Dark Mode - Deep Teal/Emerald aesthetic */
-  --background: #021212; /* Deep Dark Teal */
-  --foreground: #e2e8f0; /* Slate 200 */
-  --card: #041c1c; /* Slightly lighter deep teal */
+  --background: #021212;
+  --foreground: #e2e8f0;
+  --card: #041c1c;
   --card-foreground: #e2e8f0;
   --popover: #041c1c;
   --popover-foreground: #e2e8f0;
-  --primary: #34d399; /* Emerald 400 (Mint) */
+  --primary: #34d399;
   --primary-foreground: #021212;
   --secondary: #112929;
   --secondary-foreground: #34d399;
@@ -59,15 +59,15 @@
   --accent-foreground: #34d399;
   --destructive: #7f1d1d;
   --destructive-foreground: #fecaca;
-  --border: #134e4a; /* Teal 800 */
+  --border: #134e4a;
   --input: #134e4a;
   --ring: #34d399;
 
   /* Finance Colors - Vibrant on dark */
-  --income: #34d399; /* Emerald 400 */
-  --expense: #f87171; /* Red 400 */
-  --investment: #60a5fa; /* Blue 400 */
-  --savings: #fbbf24; /* Amber 400 */
+  --income: #34d399;
+  --expense: #f87171;
+  --investment: #60a5fa;
+  --savings: #fbbf24;
 
   /* Charts */
   --chart-1: #34d399;
@@ -117,8 +117,6 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-
-  /* Custom Finance Tokens */
   --color-income: var(--income);
   --color-expense: var(--expense);
   --color-investment: var(--investment);
@@ -131,5 +129,48 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Smooth animations */
+@layer utilities {
+  .animate-in {
+    animation: animateIn 0.5s ease-out forwards;
+  }
+
+  @keyframes animateIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Glassmorphism utility */
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .dark .glass {
+    background: rgba(4, 28, 28, 0.7);
+  }
+
+  /* Smooth hover transitions */
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15);
+  }
+
+  .dark .hover-lift:hover {
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.4);
   }
 }

@@ -2,6 +2,7 @@ import type React from "react"
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { DashboardShell } from "@/components/dashboard-shell"
+import { FinanceProvider } from "@/components/providers/finance-provider"
 
 export default async function DashboardLayout({
   children,
@@ -18,5 +19,9 @@ export default async function DashboardLayout({
     redirect("/auth/login")
   }
 
-  return <DashboardShell user={user}>{children}</DashboardShell>
+  return (
+    <FinanceProvider userId={user.id}>
+      <DashboardShell user={user}>{children}</DashboardShell>
+    </FinanceProvider>
+  )
 }

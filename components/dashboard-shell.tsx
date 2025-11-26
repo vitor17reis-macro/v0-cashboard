@@ -120,14 +120,14 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
           router.push(href)
           setIsMobileMenuOpen(false)
         }}
-        className={`flex items-center gap-3 px-5 py-2.5 text-sm font-medium rounded-full transition-all duration-200 ${
+        className={`group flex items-center gap-2.5 px-4 py-2 text-sm font-medium rounded-full transition-all duration-300 ease-out ${
           isActive
-            ? "bg-primary text-primary-foreground shadow-md"
-            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-[1.02]"
+            : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground hover:scale-[1.02]"
         }`}
       >
-        <Icon className="h-4 w-4" />
-        {label}
+        <Icon className={`h-4 w-4 transition-transform duration-300 ${isActive ? "" : "group-hover:scale-110"}`} />
+        <span className="hidden xl:inline">{label}</span>
       </button>
     )
   }
@@ -135,87 +135,122 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
   const userInitials = user.email?.substring(0, 2).toUpperCase() || "U"
 
   return (
-    <div className="min-h-screen bg-background transition-colors duration-300">
+    <div className="min-h-screen bg-background transition-colors duration-500">
       <BudgetToastNotifications />
 
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-8 h-18 flex items-center justify-between py-4">
-          <div className="flex items-center gap-10">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-serif font-bold text-xl">C</span>
+      {/* Top Navigation Bar - Awwwards inspired glassmorphism */}
+      <header className="sticky top-0 z-50 w-full border-b border-border/30 bg-background/60 backdrop-blur-2xl backdrop-saturate-150">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          {/* Logo + Nav */}
+          <div className="flex items-center gap-6 lg:gap-10">
+            {/* Logo with hover animation */}
+            <div className="flex items-center gap-2.5 group cursor-pointer" onClick={() => router.push("/")}>
+              <div className="h-9 w-9 bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30 transition-all duration-300 group-hover:shadow-emerald-500/50 group-hover:scale-105">
+                <span className="text-white font-serif font-bold text-lg">C</span>
               </div>
               <div className="hidden sm:flex flex-col">
-                <span className="font-serif font-bold text-xl tracking-tight leading-none">CashBoard</span>
-                <span className="text-[10px] text-muted-foreground tracking-widest">VITOREIS</span>
+                <span className="font-serif font-bold text-lg tracking-tight leading-none transition-colors">
+                  CashBoard
+                </span>
+                <span className="text-[9px] text-muted-foreground tracking-[0.2em] uppercase">VitoReis</span>
               </div>
             </div>
 
-            <nav className="hidden lg:flex items-center gap-2">
+            {/* Desktop Nav */}
+            <nav className="hidden lg:flex items-center gap-1">
               {NAV_ITEMS.map((item) => (
                 <NavLink key={item.href} {...item} />
               ))}
             </nav>
           </div>
 
-          <div className="flex items-center gap-3">
-            {/* Mobile Menu */}
+          {/* Right Actions - flex-shrink-0 prevents collapse */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            {/* Mobile Menu Button */}
             <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden">
+                <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9">
                   <MenuIcon className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[280px]">
+              <SheetContent side="left" className="w-[280px] bg-background/95 backdrop-blur-xl">
                 <SheetHeader>
-                  <SheetTitle>Menu</SheetTitle>
+                  <SheetTitle className="font-serif">Menu</SheetTitle>
                 </SheetHeader>
-                <div className="flex flex-col gap-3 mt-6 pl-2">
-                  {NAV_ITEMS.map((item) => (
-                    <NavLink key={item.href} {...item} />
-                  ))}
+                <div className="flex flex-col gap-2 mt-6">
+                  {NAV_ITEMS.map((item) => {
+                    const Icon = item.icon
+                    const isActive = pathname === item.href
+                    return (
+                      <button
+                        key={item.href}
+                        onClick={() => {
+                          router.push(item.href)
+                          setIsMobileMenuOpen(false)
+                        }}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-all duration-300 ${
+                          isActive
+                            ? "bg-primary text-primary-foreground shadow-lg"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}
+                      >
+                        <Icon className="h-5 w-5" />
+                        {item.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </SheetContent>
             </Sheet>
 
+            {/* Add Transaction Button */}
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
                 <Button
                   size="sm"
-                  className="hidden sm:flex gap-2 px-5 bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-lg shadow-emerald-900/20"
+                  className="hidden sm:flex gap-2 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white border-0 shadow-lg shadow-emerald-500/25 transition-all duration-300 hover:shadow-emerald-500/40 hover:scale-[1.02]"
                 >
                   <PlusIcon className="h-4 w-4" />
-                  Nova Transação
+                  <span className="hidden md:inline">Nova Transação</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
+              <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-xl">
                 <DialogHeader>
-                  <DialogTitle>Adicionar Transação</DialogTitle>
+                  <DialogTitle className="font-serif text-xl">Adicionar Transação</DialogTitle>
                   <DialogDescription>Registe uma nova receita, despesa ou investimento.</DialogDescription>
                 </DialogHeader>
                 <TransactionForm onSuccess={() => setIsAddOpen(false)} />
               </DialogContent>
             </Dialog>
 
-            <div className="h-6 w-px bg-border/50 mx-3 hidden sm:block" />
+            {/* Divider - hidden on mobile */}
+            <div className="h-5 w-px bg-border/50 mx-1 hidden md:block" />
 
-            <div className="flex items-center gap-2">
-              <div className="hidden sm:block">
+            {/* Action Buttons Container */}
+            <div className="flex items-center gap-0.5 sm:gap-1 flex-shrink-0">
+              {/* Currency Selector - hidden on small screens */}
+              <div className="hidden md:block">
                 <CurrencySelector />
               </div>
 
+              {/* Budget Alerts */}
               <BudgetAlerts />
 
+              {/* Categories - hidden on mobile */}
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" title="Gerir Categorias">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hidden sm:flex h-9 w-9 transition-all duration-300 hover:bg-secondary hover:scale-105"
+                    title="Gerir Categorias"
+                  >
                     <TagIcon className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent>
+                <SheetContent className="bg-background/95 backdrop-blur-xl">
                   <SheetHeader>
-                    <SheetTitle>Categorias</SheetTitle>
+                    <SheetTitle className="font-serif text-xl">Categorias</SheetTitle>
                     <SheetDescription>Adicione ou remova categorias.</SheetDescription>
                   </SheetHeader>
                   <div className="mt-6">
@@ -224,16 +259,22 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                 </SheetContent>
               </Sheet>
 
+              {/* Budget Manager */}
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" title="Orçamentos">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hidden sm:flex h-9 w-9 transition-all duration-300 hover:bg-secondary hover:scale-105"
+                    title="Orçamentos"
+                  >
                     <SettingsIcon className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent>
+                <SheetContent className="w-[400px] sm:w-[450px] bg-background/95 backdrop-blur-xl">
                   <SheetHeader>
-                    <SheetTitle>Orçamentos</SheetTitle>
-                    <SheetDescription>Defina limites mensais.</SheetDescription>
+                    <SheetTitle className="font-serif text-xl">Orçamentos</SheetTitle>
+                    <SheetDescription>Defina limites mensais por categoria.</SheetDescription>
                   </SheetHeader>
                   <div className="mt-6">
                     <BudgetManager />
@@ -241,29 +282,47 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
                 </SheetContent>
               </Sheet>
 
-              <Button variant="ghost" size="icon" onClick={handleExport} title="Exportar CSV">
+              {/* Export */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleExport}
+                className="h-9 w-9 transition-all duration-300 hover:bg-secondary hover:scale-105"
+                title="Exportar CSV"
+              >
                 <DownloadIcon className="h-4 w-4 text-muted-foreground" />
               </Button>
 
+              {/* Theme Toggle */}
               <ThemeToggle />
 
+              {/* User Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full">
-                    <Avatar className="h-9 w-9">
-                      <AvatarFallback className="bg-emerald-500 text-white text-xs">{userInitials}</AvatarFallback>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="relative h-9 w-9 rounded-full transition-all duration-300 hover:scale-105"
+                  >
+                    <Avatar className="h-8 w-8 ring-2 ring-primary/20 transition-all duration-300 hover:ring-primary/40">
+                      <AvatarFallback className="bg-gradient-to-br from-emerald-400 to-teal-600 text-white text-xs font-medium">
+                        {userInitials}
+                      </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuContent align="end" className="w-56 bg-background/95 backdrop-blur-xl">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none">A minha conta</p>
-                      <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                      <p className="text-xs leading-none text-muted-foreground truncate">{user.email}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-red-600 focus:text-red-600 cursor-pointer">
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="text-red-500 focus:text-red-500 focus:bg-red-500/10 cursor-pointer transition-colors"
+                  >
                     <LogOutIcon className="mr-2 h-4 w-4" />
                     Sair
                   </DropdownMenuItem>
@@ -272,40 +331,46 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
             </div>
           </div>
         </div>
-
-        {/* Mobile FAB */}
-        <div className="md:hidden fixed bottom-6 right-6 z-50">
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button size="icon" className="h-14 w-14 rounded-full shadow-xl bg-emerald-600 hover:bg-emerald-700">
-                <PlusIcon className="h-6 w-6 text-white" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Adicionar Transação</DialogTitle>
-                <DialogDescription>Registe uma nova receita, despesa ou investimento.</DialogDescription>
-              </DialogHeader>
-              <TransactionForm onSuccess={() => setIsAddOpen(false)} />
-            </DialogContent>
-          </Dialog>
-        </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-8 min-h-[calc(100vh-72px)]">{children}</main>
+      {/* Main Content with fade-in animation */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 min-h-[calc(100vh-64px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+        {children}
+      </main>
 
-      {/* Floating chatbot button */}
+      {/* Mobile FAB */}
+      <div className="sm:hidden fixed bottom-6 right-6 z-50">
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger asChild>
+            <Button
+              size="icon"
+              className="h-14 w-14 rounded-full shadow-2xl shadow-emerald-500/30 bg-gradient-to-br from-emerald-400 to-teal-600 hover:from-emerald-500 hover:to-teal-700 transition-all duration-300 hover:scale-110"
+            >
+              <PlusIcon className="h-6 w-6 text-white" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] bg-background/95 backdrop-blur-xl">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">Adicionar Transação</DialogTitle>
+              <DialogDescription>Registe uma nova receita, despesa ou investimento.</DialogDescription>
+            </DialogHeader>
+            <TransactionForm onSuccess={() => setIsAddOpen(false)} />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Floating chatbot button - Desktop only */}
       <div className="fixed bottom-6 right-6 z-50 hidden md:block">
         <Sheet open={isChatOpen} onOpenChange={setIsChatOpen}>
           <SheetTrigger asChild>
             <Button
               size="icon"
-              className="h-14 w-14 rounded-full shadow-xl bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800"
+              className="h-14 w-14 rounded-full shadow-2xl shadow-blue-500/30 bg-gradient-to-br from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 transition-all duration-300 hover:scale-110"
             >
               <MessageCircleIcon className="h-6 w-6 text-white" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[400px] sm:w-[450px] p-0">
+          <SheetContent side="right" className="w-[400px] sm:w-[450px] p-0 bg-background/95 backdrop-blur-xl">
             <Chatbot onClose={() => setIsChatOpen(false)} />
           </SheetContent>
         </Sheet>
