@@ -71,39 +71,49 @@ export function AccountCards() {
       case "investment":
         return "Investimentos"
       case "savings":
-        return "Conta Poupança"
+        return "Poupança"
       default:
         return type
     }
   }
 
-  const getGradient = (type: string) => {
+  const getCardStyle = (type: string) => {
     switch (type) {
       case "checking":
-        return "from-teal-500/20 via-teal-500/10 to-transparent"
-      case "cash":
-        return "from-amber-500/20 via-amber-500/10 to-transparent"
-      case "investment":
-        return "from-violet-500/20 via-violet-500/10 to-transparent"
+        return {
+          gradient: "from-teal-500 to-teal-600",
+          icon: "bg-white/20 text-white",
+          text: "text-white",
+          muted: "text-white/70",
+        }
       case "savings":
-        return "from-cyan-500/20 via-cyan-500/10 to-transparent"
-      default:
-        return "from-gray-500/20 via-gray-500/10 to-transparent"
-    }
-  }
-
-  const getIconColor = (type: string) => {
-    switch (type) {
-      case "checking":
-        return "text-teal-600 dark:text-teal-400"
-      case "cash":
-        return "text-amber-600 dark:text-amber-400"
+        return {
+          gradient: "from-blue-500 to-blue-600",
+          icon: "bg-white/20 text-white",
+          text: "text-white",
+          muted: "text-white/70",
+        }
       case "investment":
-        return "text-violet-600 dark:text-violet-400"
-      case "savings":
-        return "text-cyan-600 dark:text-cyan-400"
+        return {
+          gradient: "from-violet-500 to-violet-600",
+          icon: "bg-white/20 text-white",
+          text: "text-white",
+          muted: "text-white/70",
+        }
+      case "cash":
+        return {
+          gradient: "from-amber-500 to-amber-600",
+          icon: "bg-white/20 text-white",
+          text: "text-white",
+          muted: "text-white/70",
+        }
       default:
-        return "text-gray-600 dark:text-gray-400"
+        return {
+          gradient: "from-gray-500 to-gray-600",
+          icon: "bg-white/20 text-white",
+          text: "text-white",
+          muted: "text-white/70",
+        }
     }
   }
 
@@ -141,7 +151,9 @@ export function AccountCards() {
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle className="font-serif text-xl">Transferência entre Contas</DialogTitle>
-                <DialogDescription>Mova dinheiro entre as suas contas bancárias.</DialogDescription>
+                <DialogDescription>
+                  Mova dinheiro entre as suas contas (à ordem, poupança, investimentos, dinheiro).
+                </DialogDescription>
               </DialogHeader>
               <AccountTransferForm onSuccess={() => setIsTransferOpen(false)} />
             </DialogContent>
@@ -150,7 +162,7 @@ export function AccountCards() {
             <DialogTrigger asChild>
               <Button
                 size="sm"
-                className="h-9 w-9 p-0 rounded-full bg-primary hover:bg-primary/90 shadow-lg glow-primary transition-all duration-300"
+                className="h-9 w-9 p-0 rounded-full bg-primary hover:bg-primary/90 shadow-lg transition-all duration-300"
               >
                 <PlusIcon className="h-4 w-4" />
               </Button>
@@ -181,59 +193,55 @@ export function AccountCards() {
             </CardContent>
           </Card>
         ) : (
-          accounts.map((account, index) => (
-            <Card
-              key={account.id}
-              className={`group relative overflow-hidden border-0 bg-gradient-to-br ${getGradient(account.type)} backdrop-blur-sm transition-all duration-500 hover:shadow-2xl hover:shadow-black/10 dark:hover:shadow-black/30 hover:-translate-y-1 animate-in`}
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              {/* Decorative element */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/20 to-transparent rounded-full -translate-y-16 translate-x-16 dark:from-white/5" />
+          accounts.map((account, index) => {
+            const style = getCardStyle(account.type)
+            return (
+              <Card
+                key={account.id}
+                className={`group relative overflow-hidden border-0 bg-gradient-to-br ${style.gradient} transition-all duration-500 hover:shadow-2xl hover:shadow-black/20 hover:-translate-y-1 hover:scale-[1.02] animate-in min-h-[160px]`}
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                {/* Decorative elements */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full translate-y-12 -translate-x-12" />
 
-              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-                <div
-                  className={`p-3 rounded-xl bg-background/80 backdrop-blur-sm shadow-sm ${getIconColor(account.type)}`}
-                >
-                  {getIcon(account.type)}
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-background/80"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem onClick={() => setEditingAccount(account)}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setDeletingAccountId(account.id)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Eliminar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                  {getTypeName(account.type)}
-                </p>
-                <CardTitle className="text-sm font-medium text-foreground/80 mb-2">{account.name}</CardTitle>
-                <div
-                  className={`text-2xl font-bold tracking-tight ${account.balance >= 0 ? "text-foreground" : "text-expense"}`}
-                >
-                  {formatCurrency(account.balance)}
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3 relative z-10">
+                  <div className={`p-3 rounded-xl ${style.icon} backdrop-blur-sm`}>{getIcon(account.type)}</div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white/20 text-white"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem onClick={() => setEditingAccount(account)}>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setDeletingAccountId(account.id)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Eliminar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </CardHeader>
+                <CardContent className="pt-0 relative z-10">
+                  <p className={`text-xs uppercase tracking-wider mb-1 ${style.muted}`}>{getTypeName(account.type)}</p>
+                  <CardTitle className={`text-sm font-medium mb-2 ${style.muted}`}>{account.name}</CardTitle>
+                  <div className={`text-2xl font-bold tracking-tight ${style.text}`}>
+                    {formatCurrency(account.balance)}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })
         )}
       </div>
 

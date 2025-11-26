@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { FinanceProvider } from "@/components/providers/finance-provider"
 import { CurrencyProvider } from "@/contexts/currency-context"
+import { ThemeProvider } from "@/components/providers/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 
 const geistSans = Geist({
@@ -36,10 +37,12 @@ export default function RootLayout({
   return (
     <html lang="pt" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} font-sans antialiased`}>
-        <CurrencyProvider>
-          <FinanceProvider>{children}</FinanceProvider>
-        </CurrencyProvider>
-        <Toaster />
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <CurrencyProvider>
+            <FinanceProvider>{children}</FinanceProvider>
+          </CurrencyProvider>
+          <Toaster />
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>
