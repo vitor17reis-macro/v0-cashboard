@@ -153,6 +153,15 @@
 }
 
 /* Premium animations inspired by Awwwards */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @layer utilities {
   .animate-in {
     animation: animateIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
@@ -237,5 +246,10 @@
     opacity: 0.03;
     pointer-events: none;
     z-index: 1;
+  }
+
+  /* Shimmer effect */
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
   }
 }

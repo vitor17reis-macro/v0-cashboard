@@ -1,24 +1,66 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { useFinance } from "@/components/providers/finance-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2Icon, PlusIcon, Loader2, Sparkles } from "lucide-react"
+import {
+  Trash2Icon,
+  PlusIcon,
+  Loader2,
+  Sparkles,
+  TagIcon,
+  TrendingUpIcon,
+  TrendingDownIcon,
+  PiggyBankIcon,
+  CoinsIcon,
+} from "lucide-react"
 import type { TransactionType } from "@/lib/types"
 
-const TYPES: { value: TransactionType; label: string; color: string; gradient: string }[] = [
-  { value: "income", label: "Receita", color: "text-income", gradient: "from-emerald-500/20 to-emerald-500/5" },
-  { value: "expense", label: "Despesa", color: "text-expense", gradient: "from-red-500/20 to-red-500/5" },
+const TYPES: {
+  value: TransactionType
+  label: string
+  icon: React.ElementType
+  color: string
+  bgColor: string
+  borderColor: string
+}[] = [
+  {
+    value: "income",
+    label: "Receita",
+    icon: TrendingUpIcon,
+    color: "text-income",
+    bgColor: "bg-income",
+    borderColor: "border-income/30",
+  },
+  {
+    value: "expense",
+    label: "Despesa",
+    icon: TrendingDownIcon,
+    color: "text-expense",
+    bgColor: "bg-expense",
+    borderColor: "border-expense/30",
+  },
   {
     value: "investment",
     label: "Investimento",
+    icon: CoinsIcon,
     color: "text-investment",
-    gradient: "from-violet-500/20 to-violet-500/5",
+    bgColor: "bg-investment",
+    borderColor: "border-investment/30",
   },
-  { value: "savings", label: "Poupança", color: "text-savings", gradient: "from-cyan-500/20 to-cyan-500/5" },
+  {
+    value: "savings",
+    label: "Poupança",
+    icon: PiggyBankIcon,
+    color: "text-savings",
+    bgColor: "bg-savings",
+    borderColor: "border-savings/30",
+  },
 ]
 
 const COLORS = [
@@ -30,6 +72,8 @@ const COLORS = [
   { id: "#f97316", name: "Laranja" },
   { id: "#eab308", name: "Amarelo" },
   { id: "#ef4444", name: "Vermelho" },
+  { id: "#06b6d4", name: "Cyan" },
+  { id: "#8b5cf6", name: "Purple" },
 ]
 
 export function CategoryManager() {
@@ -66,53 +110,60 @@ export function CategoryManager() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 border border-primary/20">
-        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-primary/20 to-transparent rounded-full -translate-y-20 translate-x-20 blur-2xl" />
+    <div className="flex flex-col h-full">
+      {/* Header Section with animated gradient */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary via-primary/90 to-primary/70 p-6 mb-6">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-black/10" />
+        <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-20 translate-x-20 blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/10 rounded-full translate-y-16 -translate-x-16 blur-2xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
 
         <div className="relative">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-primary" />
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-12 w-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
+              <Sparkles className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h3 className="font-semibold text-lg">Nova Categoria</h3>
-              <p className="text-xs text-muted-foreground">Organize as suas finanças</p>
+              <h3 className="font-serif font-bold text-xl text-white">Nova Categoria</h3>
+              <p className="text-sm text-white/70">Organize as suas finanças com estilo</p>
             </div>
           </div>
 
           {error && (
-            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-xl mb-4 border border-destructive/20">
+            <div className="text-sm text-white bg-white/20 backdrop-blur-sm p-3 rounded-xl mb-4 border border-white/30">
               {error}
             </div>
           )}
 
-          <div className="grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Nome</Label>
+                <Label className="text-xs uppercase tracking-wider text-white/80">Nome</Label>
                 <Input
-                  placeholder="Ex: Ginásio, Dividendos..."
+                  placeholder="Ex: Ginásio, Freelance..."
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   disabled={isAdding}
-                  className="h-11 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-colors"
+                  className="h-12 rounded-xl border-white/20 bg-white/10 backdrop-blur-sm text-white placeholder:text-white/50 focus:bg-white/20 focus:border-white/40 transition-all"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Tipo</Label>
+                <Label className="text-xs uppercase tracking-wider text-white/80">Tipo</Label>
                 <Select
                   value={newCategoryType}
                   onValueChange={(v) => setNewCategoryType(v as TransactionType)}
                   disabled={isAdding}
                 >
-                  <SelectTrigger className="h-11 rounded-xl border-border/50 bg-background/50">
+                  <SelectTrigger className="h-12 rounded-xl border-white/20 bg-white/10 backdrop-blur-sm text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-xl">
                     {TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        <span className={t.color}>{t.label}</span>
+                      <SelectItem key={t.value} value={t.value} className="rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <t.icon className={`h-4 w-4 ${t.color}`} />
+                          <span>{t.label}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -121,18 +172,18 @@ export function CategoryManager() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Cor</Label>
-              <div className="flex flex-wrap gap-2">
+              <Label className="text-xs uppercase tracking-wider text-white/80">Cor</Label>
+              <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-white/10 backdrop-blur-sm">
                 {COLORS.map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => setNewCategoryColor(c.id)}
                     disabled={isAdding}
-                    className={`h-9 w-9 rounded-xl transition-all duration-300 ${
+                    className={`h-8 w-8 rounded-full transition-all duration-300 ${
                       newCategoryColor === c.id
-                        ? "ring-2 ring-offset-2 ring-offset-background ring-primary scale-110 shadow-lg"
-                        : "hover:scale-105"
+                        ? "ring-2 ring-offset-2 ring-offset-primary ring-white scale-125 shadow-lg"
+                        : "hover:scale-110 opacity-80 hover:opacity-100"
                     } ${isAdding ? "opacity-50 cursor-not-allowed" : ""}`}
                     style={{ backgroundColor: c.id }}
                     title={c.name}
@@ -143,16 +194,16 @@ export function CategoryManager() {
 
             <Button
               onClick={handleAdd}
-              className="h-11 rounded-xl font-semibold"
+              className="w-full h-12 rounded-xl font-bold bg-white text-primary hover:bg-white/90 shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-[1.02]"
               disabled={!newCategoryName.trim() || isAdding}
             >
               {isAdding ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />A adicionar...
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />A adicionar...
                 </>
               ) : (
                 <>
-                  <PlusIcon className="h-4 w-4 mr-2" />
+                  <PlusIcon className="h-5 w-5 mr-2" />
                   Adicionar Categoria
                 </>
               )}
@@ -161,51 +212,59 @@ export function CategoryManager() {
         </div>
       </div>
 
-      <div className="space-y-6">
+      {/* Categories List */}
+      <div className="flex-1 overflow-auto pr-1 space-y-6">
         {TYPES.map((type) => {
           const typeCategories = categories.filter((c) => c.type === type.value)
           if (typeCategories.length === 0) return null
 
+          const TypeIcon = type.icon
+
           return (
             <div key={type.value} className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`h-2 w-2 rounded-full bg-gradient-to-r ${type.gradient.replace("/20", "").replace("/5", "")}`}
-                  style={{
-                    backgroundColor:
-                      type.value === "income"
-                        ? "#059669"
-                        : type.value === "expense"
-                          ? "#ef4444"
-                          : type.value === "investment"
-                            ? "#7c3aed"
-                            : "#0891b2",
-                  }}
-                />
+              <div
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl ${type.borderColor} border bg-gradient-to-r from-transparent via-card/50 to-transparent`}
+              >
+                <div className={`h-6 w-6 rounded-lg ${type.bgColor}/20 flex items-center justify-center`}>
+                  <TypeIcon className={`h-3.5 w-3.5 ${type.color}`} />
+                </div>
                 <h4 className={`text-sm font-bold uppercase tracking-wider ${type.color}`}>{type.label}</h4>
-                <span className="text-xs text-muted-foreground">({typeCategories.length})</span>
+                <div
+                  className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold ${type.bgColor}/10 ${type.color}`}
+                >
+                  {typeCategories.length}
+                </div>
               </div>
 
-              <div className="grid gap-2">
+              <div className="grid gap-2 pl-2">
                 {typeCategories.map((category, index) => (
                   <div
                     key={category.id}
-                    className={`group flex items-center justify-between rounded-xl bg-gradient-to-r ${type.gradient} p-3 border border-border/30 transition-all duration-300 hover:shadow-md hover:border-border/50 animate-in`}
+                    className="group relative flex items-center gap-3 rounded-2xl bg-card/80 hover:bg-card p-3 border border-border/50 hover:border-border transition-all duration-300 hover:shadow-md animate-in"
                     style={{ animationDelay: `${index * 30}ms` }}
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="h-8 w-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-sm"
-                        style={{ backgroundColor: category.color }}
-                      >
-                        {category.name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="font-medium">{category.name}</span>
+                    {/* Color indicator line */}
+                    <div
+                      className="absolute left-0 top-2 bottom-2 w-1 rounded-full transition-all duration-300 group-hover:h-[calc(100%-8px)]"
+                      style={{ backgroundColor: category.color }}
+                    />
+
+                    <div
+                      className="h-10 w-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md ml-2 transition-transform duration-300 group-hover:scale-110"
+                      style={{ backgroundColor: category.color }}
+                    >
+                      {category.name.charAt(0).toUpperCase()}
                     </div>
+
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium truncate block">{category.name}</span>
+                      <span className={`text-xs ${type.color} opacity-70`}>{type.label}</span>
+                    </div>
+
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-300 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-300 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl"
                       onClick={() => deleteCategory(category.id)}
                     >
                       <Trash2Icon className="h-4 w-4" />
@@ -218,12 +277,14 @@ export function CategoryManager() {
         })}
 
         {categories.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-              <PlusIcon className="h-8 w-8 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center mb-4 shadow-inner">
+              <TagIcon className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h3 className="font-semibold mb-1">Sem categorias</h3>
-            <p className="text-sm text-muted-foreground">Crie a sua primeira categoria acima.</p>
+            <h3 className="font-serif font-bold text-lg mb-2">Sem categorias</h3>
+            <p className="text-sm text-muted-foreground max-w-[200px]">
+              Crie a sua primeira categoria para organizar as finanças.
+            </p>
           </div>
         )}
       </div>

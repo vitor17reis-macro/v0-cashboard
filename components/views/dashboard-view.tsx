@@ -2,7 +2,7 @@
 
 import { useFinance } from "@/components/providers/finance-provider"
 import { useCurrency } from "@/contexts/currency-context"
-import { ArrowUpIcon, ArrowDownIcon, WalletIcon } from "lucide-react"
+import { ArrowUpIcon, ArrowDownIcon, WalletIcon, PiggyBankIcon, TrendingUpIcon } from "lucide-react"
 import { OverviewCharts } from "@/components/analytics/overview-charts"
 import { AccountCards } from "@/components/accounts/account-cards"
 import { GoalsList } from "@/components/goals/goals-list"
@@ -17,9 +17,13 @@ const PERIODS = [
 ] as const
 
 export function DashboardView() {
-  const { getSummary, period, setPeriod } = useFinance()
+  const { getSummary, period, setPeriod, accounts = [] } = useFinance()
   const { formatCurrency } = useCurrency()
   const summary = getSummary()
+
+  const totalSavings = accounts.filter((a) => a.type === "savings").reduce((sum, a) => sum + a.balance, 0)
+
+  const totalInvestments = accounts.filter((a) => a.type === "investment").reduce((sum, a) => sum + a.balance, 0)
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -42,39 +46,77 @@ export function DashboardView() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 shadow-sm hover:bg-card/80 transition-all group">
-          <div className="flex items-center justify-between space-y-0 pb-2">
-            <p className="text-sm font-medium text-muted-foreground group-hover:text-primary transition-colors">
-              Saldo Líquido
-            </p>
-            <WalletIcon className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div className="flex items-baseline space-x-2 mt-2">
-            <h2 className={`text-2xl font-bold ${summary.balance >= 0 ? "text-foreground" : "text-expense"}`}>
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        {/* Saldo Líquido */}
+        <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-card via-card to-card/80 p-5 shadow-sm hover:shadow-lg transition-all duration-500 group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/10 to-transparent rounded-full -translate-y-10 translate-x-10 blur-xl group-hover:scale-150 transition-transform duration-700" />
+          <div className="relative">
+            <div className="flex items-center justify-between pb-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Saldo Líquido</p>
+              <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                <WalletIcon className="h-4 w-4 text-primary" />
+              </div>
+            </div>
+            <h2 className={`text-xl font-bold mt-2 ${summary.balance >= 0 ? "text-foreground" : "text-expense"}`}>
               {formatCurrency(summary.balance)}
             </h2>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">No período selecionado</p>
-        </div>
-
-        <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 shadow-sm hover:bg-card/80 transition-all">
-          <div className="flex items-center justify-between space-y-0 pb-2">
-            <p className="text-sm font-medium text-muted-foreground">Receitas</p>
-            <ArrowUpIcon className="h-4 w-4 text-income" />
-          </div>
-          <div className="flex items-baseline space-x-2 mt-2">
-            <h2 className="text-2xl font-bold text-income">{formatCurrency(summary.totalIncome)}</h2>
+            <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider">No período</p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 shadow-sm hover:bg-card/80 transition-all">
-          <div className="flex items-center justify-between space-y-0 pb-2">
-            <p className="text-sm font-medium text-muted-foreground">Despesas</p>
-            <ArrowDownIcon className="h-4 w-4 text-expense" />
+        {/* Receitas */}
+        <div className="relative overflow-hidden rounded-2xl border border-income/20 bg-gradient-to-br from-income/5 via-card to-card/80 p-5 shadow-sm hover:shadow-lg hover:border-income/40 transition-all duration-500 group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-income/20 to-transparent rounded-full -translate-y-10 translate-x-10 blur-xl group-hover:scale-150 transition-transform duration-700" />
+          <div className="relative">
+            <div className="flex items-center justify-between pb-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receitas</p>
+              <div className="h-8 w-8 rounded-xl bg-income/10 flex items-center justify-center">
+                <ArrowUpIcon className="h-4 w-4 text-income" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-income mt-2">{formatCurrency(summary.totalIncome)}</h2>
           </div>
-          <div className="flex items-baseline space-x-2 mt-2">
-            <h2 className="text-2xl font-bold text-expense">{formatCurrency(summary.totalExpense)}</h2>
+        </div>
+
+        {/* Despesas */}
+        <div className="relative overflow-hidden rounded-2xl border border-expense/20 bg-gradient-to-br from-expense/5 via-card to-card/80 p-5 shadow-sm hover:shadow-lg hover:border-expense/40 transition-all duration-500 group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-expense/20 to-transparent rounded-full -translate-y-10 translate-x-10 blur-xl group-hover:scale-150 transition-transform duration-700" />
+          <div className="relative">
+            <div className="flex items-center justify-between pb-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Despesas</p>
+              <div className="h-8 w-8 rounded-xl bg-expense/10 flex items-center justify-center">
+                <ArrowDownIcon className="h-4 w-4 text-expense" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-expense mt-2">{formatCurrency(summary.totalExpense)}</h2>
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden rounded-2xl border border-savings/20 bg-gradient-to-br from-savings/5 via-card to-card/80 p-5 shadow-sm hover:shadow-lg hover:border-savings/40 transition-all duration-500 group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-savings/20 to-transparent rounded-full -translate-y-10 translate-x-10 blur-xl group-hover:scale-150 transition-transform duration-700" />
+          <div className="relative">
+            <div className="flex items-center justify-between pb-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Poupança</p>
+              <div className="h-8 w-8 rounded-xl bg-savings/10 flex items-center justify-center">
+                <PiggyBankIcon className="h-4 w-4 text-savings" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-savings mt-2">{formatCurrency(totalSavings)}</h2>
+            <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider">Total acumulado</p>
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden rounded-2xl border border-investment/20 bg-gradient-to-br from-investment/5 via-card to-card/80 p-5 shadow-sm hover:shadow-lg hover:border-investment/40 transition-all duration-500 group">
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-investment/20 to-transparent rounded-full -translate-y-10 translate-x-10 blur-xl group-hover:scale-150 transition-transform duration-700" />
+          <div className="relative">
+            <div className="flex items-center justify-between pb-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Investido</p>
+              <div className="h-8 w-8 rounded-xl bg-investment/10 flex items-center justify-center">
+                <TrendingUpIcon className="h-4 w-4 text-investment" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold text-investment mt-2">{formatCurrency(totalInvestments)}</h2>
+            <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider">Total acumulado</p>
           </div>
         </div>
       </div>

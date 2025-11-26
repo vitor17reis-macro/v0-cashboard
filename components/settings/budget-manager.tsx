@@ -3,8 +3,7 @@
 import { useFinance } from "@/components/providers/finance-provider"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { TrendingDownIcon, AlertTriangleIcon, CheckCircle2Icon, Target, Sparkles } from "lucide-react"
+import { AlertTriangleIcon, Target, Sparkles, FlameIcon, ShieldCheckIcon } from "lucide-react"
 
 export function BudgetManager() {
   const { categories = [], updateBudget, getBudgetStatus } = useFinance()
@@ -18,185 +17,214 @@ export function BudgetManager() {
         bgColor: "bg-red-500",
         bgLight: "bg-red-500/10",
         borderColor: "border-red-500/30",
+        ringColor: "ring-red-500/20",
         label: "Excedido",
-        gradient: "from-red-500/20 via-red-500/10 to-transparent",
+        gradient: "from-red-500 to-orange-500",
       }
     }
     if (percentage >= 80) {
       return {
-        icon: TrendingDownIcon,
+        icon: FlameIcon,
         color: "text-amber-500",
         bgColor: "bg-amber-500",
         bgLight: "bg-amber-500/10",
         borderColor: "border-amber-500/30",
+        ringColor: "ring-amber-500/20",
         label: "Atenção",
-        gradient: "from-amber-500/20 via-amber-500/10 to-transparent",
+        gradient: "from-amber-500 to-yellow-500",
       }
     }
     return {
-      icon: CheckCircle2Icon,
+      icon: ShieldCheckIcon,
       color: "text-emerald-500",
       bgColor: "bg-emerald-500",
       bgLight: "bg-emerald-500/10",
       borderColor: "border-emerald-500/30",
-      label: "OK",
-      gradient: "from-emerald-500/20 via-emerald-500/10 to-transparent",
+      ringColor: "ring-emerald-500/20",
+      label: "Saudável",
+      gradient: "from-emerald-500 to-teal-500",
     }
   }
 
-  // Calculate totals
   const totalBudget = expenseCategories.reduce((acc, c) => acc + (getBudgetStatus(c.id).limit || 0), 0)
   const totalSpent = expenseCategories.reduce((acc, c) => acc + getBudgetStatus(c.id).spent, 0)
   const overallPercentage = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0
   const overallStatus = getStatusInfo(overallPercentage)
+  const OverallIcon = overallStatus.icon
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full">
+      {/* Hero Summary Card */}
       {totalBudget > 0 && (
-        <div
-          className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${overallStatus.gradient} p-6 border ${overallStatus.borderColor}`}
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-16 translate-x-16 blur-xl" />
-
-          <div className="relative flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`h-12 w-12 rounded-xl ${overallStatus.bgLight} flex items-center justify-center`}>
-                <Target className={`h-6 w-6 ${overallStatus.color}`} />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg">Resumo Geral</h3>
-                <p className="text-sm text-muted-foreground">
-                  {totalSpent.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })} de{" "}
-                  {totalBudget.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
-                </p>
-              </div>
-            </div>
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 mb-6 text-white">
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute top-0 left-1/4 w-64 h-64 bg-gradient-to-br from-primary/30 to-transparent rounded-full blur-3xl animate-pulse" />
             <div
-              className={`flex items-center gap-2 px-4 py-2 rounded-full ${overallStatus.bgLight} ${overallStatus.color} font-bold`}
-            >
-              <overallStatus.icon className="h-4 w-4" />
-              {overallPercentage.toFixed(0)}%
-            </div>
+              className="absolute bottom-0 right-1/4 w-48 h-48 bg-gradient-to-br from-violet-500/20 to-transparent rounded-full blur-3xl animate-pulse"
+              style={{ animationDelay: "1s" }}
+            />
           </div>
 
-          <div className="h-3 bg-background/50 rounded-full overflow-hidden backdrop-blur-sm">
-            <div
-              className={`h-full rounded-full transition-all duration-700 ease-out ${overallStatus.bgColor}`}
-              style={{ width: `${Math.min(overallPercentage, 100)}%` }}
-            />
+          {/* Grid pattern using CSS gradient instead of SVG */}
+          <div
+            className="absolute inset-0 opacity-[0.03]"
+            style={{
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+              backgroundSize: "40px 40px",
+            }}
+          />
+
+          <div className="relative">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${overallStatus.gradient} flex items-center justify-center shadow-lg shadow-primary/25`}
+                >
+                  <Target className="h-7 w-7 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-white/60 uppercase tracking-wider">Orçamento Mensal</p>
+                  <h3 className="font-serif font-bold text-2xl">
+                    {totalSpent.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10">
+                <OverallIcon className={`h-5 w-5 ${overallStatus.color}`} />
+                <span className={`font-bold ${overallStatus.color}`}>{overallPercentage.toFixed(0)}%</span>
+              </div>
+            </div>
+
+            {/* Progress visualization */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
+                <span className="text-white/60">Gasto</span>
+                <span className="text-white/60">
+                  de {totalBudget.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
+                </span>
+              </div>
+              <div className="relative h-4 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm">
+                <div
+                  className={`absolute inset-y-0 left-0 bg-gradient-to-r ${overallStatus.gradient} rounded-full transition-all duration-1000 ease-out`}
+                  style={{ width: `${Math.min(overallPercentage, 100)}%` }}
+                />
+              </div>
+              <div className={`flex items-center justify-center gap-2 text-sm font-medium ${overallStatus.color}`}>
+                <OverallIcon className="h-4 w-4" />
+                {overallStatus.label}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      <ScrollArea className="h-[calc(100vh-380px)] pr-2">
-        <div className="space-y-3">
-          {expenseCategories.map((category, index) => {
-            const status = getBudgetStatus(category.id)
-            const statusInfo = getStatusInfo(status.percentage)
-            const StatusIcon = statusInfo.icon
+      {/* Categories Budget List */}
+      <div className="flex-1 overflow-auto pr-1 space-y-3">
+        {expenseCategories.map((category, index) => {
+          const status = getBudgetStatus(category.id)
+          const statusInfo = getStatusInfo(status.percentage)
+          const StatusIcon = statusInfo.icon
 
-            return (
+          return (
+            <div
+              key={category.id}
+              className={`group relative overflow-hidden rounded-2xl bg-card border ${statusInfo.borderColor} hover:border-border transition-all duration-500 hover:shadow-lg animate-in`}
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              {/* Status indicator bar */}
               <div
-                key={category.id}
-                className={`group relative overflow-hidden rounded-2xl bg-gradient-to-r ${statusInfo.gradient} border ${statusInfo.borderColor} p-5 transition-all duration-500 hover:shadow-lg hover:-translate-y-0.5 animate-in`}
-                style={{ animationDelay: `${index * 40}ms` }}
-              >
-                {/* Decorative glow */}
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/10 to-transparent rounded-full -translate-y-12 translate-x-12 blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${statusInfo.gradient} transition-all duration-500`}
+                style={{ width: `${Math.min(status.percentage, 100)}%` }}
+              />
 
-                <div className="relative">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="h-11 w-11 rounded-xl flex items-center justify-center text-white font-bold shadow-md"
-                        style={{ backgroundColor: category.color }}
-                      >
-                        {category.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <Label className="font-bold text-base">{category.name}</Label>
-                        {status.limit > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            {status.spent.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })} /{" "}
-                            {status.limit.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
+              <div className="p-4 pt-5">
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div
+                    className="h-12 w-12 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
+                    style={{ backgroundColor: category.color }}
+                  >
+                    {category.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <Label className="font-bold text-base truncate block">{category.name}</Label>
                     {status.limit > 0 && (
-                      <div
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${statusInfo.bgLight} ${statusInfo.color} shadow-sm`}
-                      >
-                        <StatusIcon className="h-3.5 w-3.5" />
-                        {statusInfo.label}
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {status.spent.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })} gasto
+                      </p>
                     )}
                   </div>
-
-                  {/* Progress Bar */}
                   {status.limit > 0 && (
-                    <div className="mb-4">
-                      <div className="h-2.5 bg-background/60 rounded-full overflow-hidden backdrop-blur-sm">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 ease-out ${statusInfo.bgColor}`}
-                          style={{ width: `${Math.min(status.percentage, 100)}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between mt-2">
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">0%</span>
-                        <span className={`text-xs font-bold ${statusInfo.color}`}>{status.percentage.toFixed(0)}%</span>
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">100%</span>
-                      </div>
+                    <div
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold ${statusInfo.bgLight} ${statusInfo.color} ring-1 ${statusInfo.ringColor}`}
+                    >
+                      <StatusIcon className="h-3.5 w-3.5" />
+                      {status.percentage.toFixed(0)}%
                     </div>
                   )}
+                </div>
 
-                  {/* Limit Input */}
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-background/60 backdrop-blur-sm border border-border/30">
-                    <Label
-                      htmlFor={`budget-${category.id}`}
-                      className="text-xs text-muted-foreground whitespace-nowrap uppercase tracking-wider"
-                    >
-                      Limite
-                    </Label>
-                    <div className="relative flex-1">
-                      <Input
-                        id={`budget-${category.id}`}
-                        type="number"
-                        className="h-10 pr-8 text-right bg-background/50 border-0 focus:ring-2 focus:ring-primary/20 rounded-lg font-medium"
-                        placeholder="0,00"
-                        defaultValue={status.limit || ""}
-                        onBlur={(e) => {
-                          const val = Number.parseFloat(e.target.value)
-                          if (!isNaN(val) && val >= 0) {
-                            updateBudget(category.id, val)
-                          }
-                        }}
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
-                        €
-                      </span>
+                {/* Progress Bar */}
+                {status.limit > 0 && (
+                  <div className="mb-4">
+                    <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full bg-gradient-to-r ${statusInfo.gradient} transition-all duration-700 ease-out relative overflow-hidden`}
+                        style={{ width: `${Math.min(status.percentage, 100)}%` }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                      </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Limit Input */}
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border/50 group-hover:border-border transition-colors">
+                  <Label
+                    htmlFor={`budget-${category.id}`}
+                    className="text-xs text-muted-foreground whitespace-nowrap font-medium"
+                  >
+                    Limite Mensal
+                  </Label>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
+                      €
+                    </span>
+                    <Input
+                      id={`budget-${category.id}`}
+                      type="number"
+                      className="h-10 pl-8 text-right bg-background border-0 focus:ring-2 focus:ring-primary/20 rounded-lg font-bold"
+                      placeholder="0,00"
+                      defaultValue={status.limit || ""}
+                      onBlur={(e) => {
+                        const val = Number.parseFloat(e.target.value)
+                        if (!isNaN(val) && val >= 0) {
+                          updateBudget(category.id, val)
+                        }
+                      }}
+                    />
                   </div>
                 </div>
               </div>
-            )
-          })}
-
-          {expenseCategories.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="h-20 w-20 rounded-2xl bg-muted flex items-center justify-center mb-4">
-                <Sparkles className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <h3 className="font-bold text-lg mb-2">Sem categorias de despesa</h3>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                Adicione categorias de despesa primeiro para poder definir orçamentos mensais.
-              </p>
             </div>
-          )}
-        </div>
-      </ScrollArea>
+          )
+        })}
+
+        {expenseCategories.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-24 w-24 rounded-3xl bg-gradient-to-br from-muted via-muted to-muted/50 flex items-center justify-center mb-6 shadow-inner relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+              <Sparkles className="h-12 w-12 text-muted-foreground relative" />
+            </div>
+            <h3 className="font-serif font-bold text-xl mb-2">Sem categorias</h3>
+            <p className="text-sm text-muted-foreground max-w-[220px] leading-relaxed">
+              Adicione categorias de despesa para poder definir os seus orçamentos mensais.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
