@@ -1,0 +1,135 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Light Mode - Soft pastel/cream aesthetic instead of harsh whites */
+  --background: #faf8f5; /* Warm cream */
+  --foreground: #1a1a1a; /* Soft black */
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #059669; /* Emerald 600 */
+  --primary-foreground: #ffffff;
+  --secondary: #f0ebe3; /* Warm beige */
+  --secondary-foreground: #1a1a1a;
+  --muted: #f5f1eb; /* Soft cream */
+  --muted-foreground: #6b6b6b;
+  --accent: #e8e0d5; /* Warm accent */
+  --accent-foreground: #0f766e;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e5ded4; /* Warm border */
+  --input: #e5ded4;
+  --ring: #059669;
+
+  --radius: 0.625rem;
+
+  /* Finance Specific Colors */
+  --income: #059669; /* Emerald 600 */
+  --expense: #dc2626; /* Red 600 */
+  --investment: #2563eb; /* Blue 600 */
+  --savings: #d97706; /* Amber 600 */
+
+  /* Charts */
+  --chart-1: #059669;
+  --chart-2: #dc2626;
+  --chart-3: #2563eb;
+  --chart-4: #d97706;
+  --chart-5: #0d9488;
+}
+
+.dark {
+  /* Dark Mode - Deep Teal/Emerald aesthetic */
+  --background: #021212; /* Deep Dark Teal */
+  --foreground: #e2e8f0; /* Slate 200 */
+  --card: #041c1c; /* Slightly lighter deep teal */
+  --card-foreground: #e2e8f0;
+  --popover: #041c1c;
+  --popover-foreground: #e2e8f0;
+  --primary: #34d399; /* Emerald 400 (Mint) */
+  --primary-foreground: #021212;
+  --secondary: #112929;
+  --secondary-foreground: #34d399;
+  --muted: #0f3535;
+  --muted-foreground: #94a3b8;
+  --accent: #0f3535;
+  --accent-foreground: #34d399;
+  --destructive: #7f1d1d;
+  --destructive-foreground: #fecaca;
+  --border: #134e4a; /* Teal 800 */
+  --input: #134e4a;
+  --ring: #34d399;
+
+  /* Finance Colors - Vibrant on dark */
+  --income: #34d399; /* Emerald 400 */
+  --expense: #f87171; /* Red 400 */
+  --investment: #60a5fa; /* Blue 400 */
+  --savings: #fbbf24; /* Amber 400 */
+
+  /* Charts */
+  --chart-1: #34d399;
+  --chart-2: #f87171;
+  --chart-3: #60a5fa;
+  --chart-4: #fbbf24;
+  --chart-5: #2dd4bf;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), "Geist", sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", monospace;
+  --font-serif: var(--font-playfair), "Playfair Display", serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Custom Finance Tokens */
+  --color-income: var(--income);
+  --color-expense: var(--expense);
+  --color-investment: var(--investment);
+  --color-savings: var(--savings);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
