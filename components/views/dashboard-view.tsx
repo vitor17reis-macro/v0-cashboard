@@ -7,6 +7,7 @@ import { OverviewCharts } from "@/components/analytics/overview-charts"
 import { AccountCards } from "@/components/accounts/account-cards"
 import { GoalsList } from "@/components/goals/goals-list"
 import { TransactionList } from "@/components/transactions/transaction-list"
+import { AIInsights } from "@/components/insights/ai-insights"
 
 const PERIODS = [
   { id: "day", label: "Hoje" },
@@ -98,6 +99,8 @@ export function DashboardView() {
           <p className="text-xs text-muted-foreground mt-1">Taxa: {summary.savingsRate.toFixed(1)}%</p>
         </div>
       </div>
+
+      <AIInsights />
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2">

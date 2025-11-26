@@ -17,6 +17,8 @@ import {
   MenuIcon,
   HistoryIcon,
   MessageCircleIcon,
+  Zap,
+  GitCompareArrows,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -52,9 +54,11 @@ import { Chatbot } from "@/components/chatbot/chatbot"
 const NAV_ITEMS = [
   { href: "/", icon: LayoutDashboardIcon, label: "Visão Geral" },
   { href: "/historico", icon: HistoryIcon, label: "Histórico" },
+  { href: "/comparacao", icon: GitCompareArrows, label: "Comparação" },
   { href: "/relatorios", icon: PieChartIcon, label: "Relatórios" },
   { href: "/previsao", icon: TrendingUpIcon, label: "Previsão" },
   { href: "/assinaturas", icon: CalendarClockIcon, label: "Assinaturas" },
+  { href: "/regras", icon: Zap, label: "Automações" },
 ]
 
 interface DashboardShellProps {

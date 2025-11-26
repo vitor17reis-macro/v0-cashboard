@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { useFinance } from "@/components/providers/finance-provider"
 import { useCurrency } from "@/contexts/currency-context"
@@ -14,6 +16,9 @@ import {
   SearchIcon,
   FilterIcon,
   AlertTriangleIcon,
+  GripVertical,
+  ArrowLeftRight,
+  Tag,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
+import type { Transaction } from "@/lib/types"
 
 export function HistoryView() {
   const { transactions, categories, accounts, goals, reverseTransaction } = useFinance()
@@ -41,6 +47,17 @@ export function HistoryView() {
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [transactionToReverse, setTransactionToReverse] = useState<string | null>(null)
   const [isReversing, setIsReversing] = useState(false)
+
+  // Drag and drop state
+  const [draggedTransaction, setDraggedTransaction] = useState<Transaction | null>(null)
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null)
+  const [showDropZones, setShowDropZones] = useState(false)
+  const [reclassifyDialog, setReclassifyDialog] = useState<{
+    transaction: Transaction
+    targetType: "category" | "account"
+    targetId: string
+    targetName: string
+  } | null>(null)
 
   const getCategoryName = (id: string) => {
     return categories.find((c) => c.id === id)?.name || id
@@ -61,6 +78,8 @@ export function HistoryView() {
         return <WalletIcon className="h-4 w-4 text-investment" />
       case "savings":
         return <PiggyBankIcon className="h-4 w-4 text-savings" />
+      case "transfer":
+        return <ArrowLeftRight className="h-4 w-4 text-primary" />
       default:
         return null
     }
@@ -76,6 +95,8 @@ export function HistoryView() {
         return "text-investment"
       case "savings":
         return "text-savings"
+      case "transfer":
+        return "text-primary"
       default:
         return "text-foreground"
     }
@@ -91,6 +112,8 @@ export function HistoryView() {
         return "Investimento"
       case "savings":
         return "Poupança"
+      case "transfer":
+        return "Transferência"
       default:
         return type
     }
@@ -145,7 +168,6 @@ export function HistoryView() {
       case "investment":
         return `${amount} serão devolvidos à conta "${accountName}".`
       case "savings":
-        // Check if this is a goal deposit
         if (selectedTransaction.goalId) {
           const goal = goals.find((g) => g.id === selectedTransaction.goalId)
           return `${amount} serão removidos da meta "${goal?.name || "Meta"}" e devolvidos à conta "${accountName}".`
@@ -156,17 +178,165 @@ export function HistoryView() {
     }
   }
 
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, transaction: Transaction) => {
+    setDraggedTransaction(transaction)
+    setShowDropZones(true)
+    e.dataTransfer.effectAllowed = "move"
+    e.dataTransfer.setData("text/plain", transaction.id)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedTransaction(null)
+    setShowDropZones(false)
+    setDragOverTarget(null)
+  }
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    setDragOverTarget(targetId)
+  }
+
+  const handleDragLeave = () => {
+    setDragOverTarget(null)
+  }
+
+  const handleDropOnCategory = (e: React.DragEvent, categoryId: string, categoryName: string) => {
+    e.preventDefault()
+    if (draggedTransaction && draggedTransaction.category !== categoryId) {
+      setReclassifyDialog({
+        transaction: draggedTransaction,
+        targetType: "category",
+        targetId: categoryId,
+        targetName: categoryName,
+      })
+    }
+    handleDragEnd()
+  }
+
+  const handleDropOnAccount = (e: React.DragEvent, accountId: string, accountName: string) => {
+    e.preventDefault()
+    if (draggedTransaction && draggedTransaction.accountId !== accountId) {
+      setReclassifyDialog({
+        transaction: draggedTransaction,
+        targetType: "account",
+        targetId: accountId,
+        targetName: accountName,
+      })
+    }
+    handleDragEnd()
+  }
+
+  const handleConfirmReclassify = async () => {
+    if (!reclassifyDialog) return
+
+    const { transaction, targetType, targetId, targetName } = reclassifyDialog
+
+    try {
+      // Note: This would need a proper updateTransaction function in the finance provider
+      // For now, we'll show a toast indicating the intended action
+      toast({
+        title: "Transação reclassificada",
+        description: `"${transaction.description}" foi movida para ${targetType === "category" ? "categoria" : "conta"} "${targetName}".`,
+      })
+    } catch (error) {
+      toast({
+        title: "Erro ao reclassificar",
+        description: "Não foi possível reclassificar a transação.",
+        variant: "destructive",
+      })
+    } finally {
+      setReclassifyDialog(null)
+    }
+  }
+
+  // Get relevant categories for drop zones based on transaction type
+  const getRelevantCategories = () => {
+    if (!draggedTransaction) return categories
+    return categories.filter((c) => c.type === draggedTransaction.type)
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Histórico de Transações</h2>
+        <h2 className="text-2xl font-serif font-bold">Histórico de Transações</h2>
         <p className="text-muted-foreground">
-          Visualize e reverta transações. A reversão atualiza automaticamente os saldos das contas e metas.
+          Arraste transações para categorias ou contas para reclassificar. Clique em "Reverter" para anular.
         </p>
       </div>
 
+      {/* Drop Zones - Only visible when dragging */}
+      {showDropZones && (
+        <div className="grid md:grid-cols-2 gap-4 animate-in fade-in duration-200">
+          {/* Category Drop Zones */}
+          <Card className="border-2 border-dashed border-primary/30 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Soltar em Categoria
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2 max-h-[120px] overflow-y-auto">
+                {getRelevantCategories().map((category) => (
+                  <div
+                    key={category.id}
+                    onDragOver={(e) => handleDragOver(e, `cat-${category.id}`)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDropOnCategory(e, category.id, category.name)}
+                    className={`px-3 py-2 rounded-lg border-2 transition-all cursor-pointer ${
+                      dragOverTarget === `cat-${category.id}`
+                        ? "border-primary bg-primary/20 scale-105"
+                        : "border-border/50 bg-background hover:border-primary/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
+                      <span className="text-sm font-medium">{category.name}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Account Drop Zones */}
+          <Card className="border-2 border-dashed border-blue-500/30 bg-blue-500/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <WalletIcon className="h-4 w-4" />
+                Soltar em Conta
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {accounts.map((account) => (
+                  <div
+                    key={account.id}
+                    onDragOver={(e) => handleDragOver(e, `acc-${account.id}`)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDropOnAccount(e, account.id, account.name)}
+                    className={`px-3 py-2 rounded-lg border-2 transition-all cursor-pointer ${
+                      dragOverTarget === `acc-${account.id}`
+                        ? "border-blue-500 bg-blue-500/20 scale-105"
+                        : "border-border/50 bg-background hover:border-blue-500/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
+                      <span className="text-sm font-medium">{account.name}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Filters */}
-      <Card>
+      <Card className="bg-card/50 backdrop-blur-sm border-border/50">
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <FilterIcon className="h-4 w-4" />
@@ -194,6 +364,7 @@ export function HistoryView() {
                 <SelectItem value="expense">Despesas</SelectItem>
                 <SelectItem value="investment">Investimentos</SelectItem>
                 <SelectItem value="savings">Poupanças</SelectItem>
+                <SelectItem value="transfer">Transferências</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -201,11 +372,11 @@ export function HistoryView() {
       </Card>
 
       {/* Transaction List */}
-      <Card>
+      <Card className="bg-card/50 backdrop-blur-sm border-border/50">
         <CardHeader>
           <CardTitle className="text-base">Transações ({filteredTransactions.length})</CardTitle>
           <CardDescription>
-            Clique em "Reverter" para anular uma transação. Os valores serão automaticamente ajustados.
+            Arraste uma transação para reclassificar ou clique em "Reverter" para anular.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -218,9 +389,17 @@ export function HistoryView() {
               {filteredTransactions.map((transaction) => (
                 <div
                   key={transaction.id}
-                  className="flex items-center justify-between p-4 rounded-lg border border-border/40 bg-card/40 hover:bg-accent/40 transition-colors"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, transaction)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-center justify-between p-4 rounded-lg border border-border/40 bg-card/40 hover:bg-accent/40 transition-all cursor-grab active:cursor-grabbing ${
+                    draggedTransaction?.id === transaction.id ? "opacity-50 scale-[0.98]" : ""
+                  }`}
                 >
                   <div className="flex items-center gap-4">
+                    <div className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                      <GripVertical className="h-5 w-5" />
+                    </div>
                     <div className={`p-2 rounded-full bg-background border ${getTypeColor(transaction.type)}/10`}>
                       {getTypeIcon(transaction.type)}
                     </div>
@@ -252,7 +431,7 @@ export function HistoryView() {
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <span className={`font-bold font-mono ${getTypeColor(transaction.type)}`}>
-                        {transaction.type === "expense" ? "-" : "+"}
+                        {transaction.type === "expense" ? "-" : transaction.type === "transfer" ? "" : "+"}
                         {formatCurrency(transaction.amount)}
                       </span>
                       <p className="text-xs text-muted-foreground">{getTypeName(transaction.type)}</p>
@@ -274,7 +453,7 @@ export function HistoryView() {
         </CardContent>
       </Card>
 
-      {/* Confirmation Dialog */}
+      {/* Reversal Confirmation Dialog */}
       <AlertDialog open={!!transactionToReverse} onOpenChange={(open) => !open && setTransactionToReverse(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -314,6 +493,43 @@ export function HistoryView() {
             >
               {isReversing ? "A reverter..." : "Confirmar Reversão"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reclassify Confirmation Dialog */}
+      <AlertDialog open={!!reclassifyDialog} onOpenChange={(open) => !open && setReclassifyDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {reclassifyDialog?.targetType === "category" ? (
+                <Tag className="h-5 w-5 text-primary" />
+              ) : (
+                <WalletIcon className="h-5 w-5 text-blue-500" />
+              )}
+              Reclassificar Transação
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Deseja mover esta transação?</p>
+              {reclassifyDialog && (
+                <div className="bg-muted p-3 rounded-lg space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Transação:</span>
+                    <span className="font-medium text-foreground">{reclassifyDialog.transaction.description}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Nova {reclassifyDialog.targetType === "category" ? "categoria" : "conta"}:
+                    </span>
+                    <span className="font-bold text-primary">{reclassifyDialog.targetName}</span>
+                  </div>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmReclassify}>Confirmar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

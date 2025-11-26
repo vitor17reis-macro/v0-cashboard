@@ -8,6 +8,7 @@ export interface Transaction {
   type: TransactionType
   category: string
   accountId?: string
+  toAccountId?: string // Added toAccountId for transfers
   goalId?: string // Added goalId to track goal deposits for proper reversal
   isRecurring?: boolean
   recurringFrequency?: "monthly" | "weekly" | "yearly"

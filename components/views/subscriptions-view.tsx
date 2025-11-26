@@ -1,3 +1,5 @@
+"use client"
+
 import { useFinance } from "@/components/providers/finance-provider"
 import { format, parseISO } from "date-fns"
 import { pt } from "date-fns/locale"

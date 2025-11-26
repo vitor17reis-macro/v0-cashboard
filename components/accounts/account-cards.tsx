@@ -14,6 +14,7 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
+  ArrowLeftRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -36,11 +37,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { AccountForm } from "./account-form"
+import { AccountTransferForm } from "./account-transfer-form"
 
 export function AccountCards() {
   const { accounts, deleteAccount } = useFinance()
   const { formatCurrency } = useCurrency()
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [isTransferOpen, setIsTransferOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<(typeof accounts)[0] | null>(null)
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null)
 
@@ -90,20 +93,41 @@ export function AccountCards() {
           <h3 className="text-xl font-serif font-bold">As Minhas Contas</h3>
           <p className="text-sm text-muted-foreground">Total: {formatCurrency(totalBalance)}</p>
         </div>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-emerald-100 dark:hover:bg-emerald-900/30">
-              <PlusIcon className="h-4 w-4" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Nova Conta</DialogTitle>
-              <DialogDescription>Adicione uma nova conta bancária ou carteira.</DialogDescription>
-            </DialogHeader>
-            <AccountForm onSuccess={() => setIsAddOpen(false)} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-2 hover:bg-primary/10 bg-transparent">
+                <ArrowLeftRight className="h-4 w-4" />
+                <span className="hidden sm:inline">Transferir</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Transferência entre Contas</DialogTitle>
+                <DialogDescription>Mova dinheiro entre as suas contas bancárias.</DialogDescription>
+              </DialogHeader>
+              <AccountTransferForm onSuccess={() => setIsTransferOpen(false)} />
+            </DialogContent>
+          </Dialog>
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
+              >
+                <PlusIcon className="h-4 w-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Nova Conta</DialogTitle>
+                <DialogDescription>Adicione uma nova conta bancária ou carteira.</DialogDescription>
+              </DialogHeader>
+              <AccountForm onSuccess={() => setIsAddOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
