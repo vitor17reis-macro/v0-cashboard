@@ -40,14 +40,12 @@ import { AccountForm } from "./account-form"
 import { AccountTransferForm } from "./account-transfer-form"
 
 export function AccountCards() {
-  const { accounts, deleteAccount, getSummary } = useFinance()
+  const { accounts, deleteAccount } = useFinance()
   const { formatCurrency } = useCurrency()
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isTransferOpen, setIsTransferOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<(typeof accounts)[0] | null>(null)
   const [deletingAccountId, setDeletingAccountId] = useState<string | null>(null)
-
-  const summary = getSummary()
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -88,12 +86,22 @@ export function AccountCards() {
     }
   }
 
+  // Group accounts by type for better organization
+  const savingsAccounts = accounts.filter((a) => a.type === "savings")
+  const investmentAccounts = accounts.filter((a) => a.type === "investment")
+  const otherAccounts = accounts.filter((a) => a.type !== "savings" && a.type !== "investment")
+
+  const totalSavings = savingsAccounts.reduce((acc, a) => acc + a.balance, 0)
+  const totalInvestments = investmentAccounts.reduce((acc, a) => acc + a.balance, 0)
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-xl font-serif font-bold">As Minhas Contas</h3>
-          <p className="text-sm text-muted-foreground">Total: {formatCurrency(totalBalance)}</p>
+          <p className="text-sm text-muted-foreground">
+            Património Total: <span className="font-semibold text-foreground">{formatCurrency(totalBalance)}</span>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
@@ -132,24 +140,29 @@ export function AccountCards() {
         </div>
       </div>
 
+      {/* Summary Cards */}
       <div className="grid gap-3 grid-cols-2">
-        <div className="rounded-xl border border-border/50 bg-gradient-to-br from-investment/10 to-investment/5 p-4 shadow-sm">
+        <div className="rounded-xl border border-border/50 bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-4 shadow-sm transition-all duration-300 hover:shadow-md">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-muted-foreground">Investimentos</p>
-            <TrendingUp className="h-4 w-4 text-investment" />
+            <p className="text-sm font-medium text-muted-foreground">Total Poupança</p>
+            <PiggyBank className="h-4 w-4 text-blue-500" />
           </div>
-          <p className="text-xl font-bold text-investment mt-1">{formatCurrency(summary.totalInvestment)}</p>
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1">{formatCurrency(totalSavings)}</p>
+          <p className="text-xs text-muted-foreground">{savingsAccounts.length} conta(s)</p>
         </div>
-        <div className="rounded-xl border border-border/50 bg-gradient-to-br from-savings/10 to-savings/5 p-4 shadow-sm">
+        <div className="rounded-xl border border-border/50 bg-gradient-to-br from-purple-500/10 to-purple-500/5 p-4 shadow-sm transition-all duration-300 hover:shadow-md">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-muted-foreground">Poupança</p>
-            <PiggyBank className="h-4 w-4 text-savings" />
+            <p className="text-sm font-medium text-muted-foreground">Total Investido</p>
+            <TrendingUp className="h-4 w-4 text-purple-500" />
           </div>
-          <p className="text-xl font-bold text-savings mt-1">{formatCurrency(summary.totalSavings)}</p>
-          <p className="text-xs text-muted-foreground">Taxa: {summary.savingsRate.toFixed(1)}%</p>
+          <p className="text-xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+            {formatCurrency(totalInvestments)}
+          </p>
+          <p className="text-xs text-muted-foreground">{investmentAccounts.length} conta(s)</p>
         </div>
       </div>
 
+      {/* All Accounts Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {accounts.length === 0 ? (
           <Card className="col-span-full bg-card/50 backdrop-blur-sm border-border/50 border-dashed">
@@ -164,12 +177,15 @@ export function AccountCards() {
           </Card>
         ) : (
           accounts.map((account) => (
-            <Card key={account.id} className="bg-card/50 backdrop-blur-sm border-border/50 group relative">
+            <Card
+              key={account.id}
+              className="bg-card/50 backdrop-blur-sm border-border/50 group relative transition-all duration-300 hover:shadow-lg hover:border-border"
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{account.name}</CardTitle>
                 <div className="flex items-center gap-2">
                   <div
-                    className="p-2 rounded-full"
+                    className="p-2 rounded-full transition-transform duration-300 group-hover:scale-110"
                     style={{ backgroundColor: `${account.color}20`, color: account.color }}
                   >
                     {getIcon(account.type)}

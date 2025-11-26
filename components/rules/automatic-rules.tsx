@@ -52,7 +52,7 @@ interface AutoRule {
 const RULE_STORAGE_KEY = "cashboard_auto_rules"
 
 export function AutomaticRules() {
-  const { accounts, goals, categories } = useFinance()
+  const { accounts = [], goals = [], categories = [] } = useFinance()
   const { formatCurrency } = useCurrency()
   const [rules, setRules] = useState<AutoRule[]>([])
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -144,6 +144,11 @@ export function AutomaticRules() {
     setDeletingRuleId(null)
   }
 
+  // Safe array access
+  const safeAccounts = accounts || []
+  const safeGoals = goals || []
+  const safeCategories = categories || []
+
   const getTriggerLabel = (trigger: AutoRule["trigger"]) => {
     switch (trigger.type) {
       case "income_received":
@@ -153,7 +158,7 @@ export function AutomaticRules() {
       case "amount_above":
         return `Quando valor acima de ${formatCurrency(Number.parseFloat(trigger.value) || 0)}`
       case "category_match":
-        const cat = categories?.find((c) => c.id === trigger.category)
+        const cat = safeCategories.find((c) => c.id === trigger.category)
         return `Quando categoria for "${cat?.name || trigger.category}"`
     }
   }
@@ -161,17 +166,17 @@ export function AutomaticRules() {
   const getActionLabel = (action: AutoRule["action"]) => {
     switch (action.type) {
       case "transfer_percentage":
-        const pctAccount = accounts?.find((a) => a.id === action.targetAccountId)
-        const pctGoal = goals?.find((g) => g.id === action.targetGoalId)
+        const pctAccount = safeAccounts.find((a) => a.id === action.targetAccountId)
+        const pctGoal = safeGoals.find((g) => g.id === action.targetGoalId)
         const target = pctGoal?.name || pctAccount?.name || "?"
         return `Transferir ${action.percentage}% para ${target}`
       case "transfer_fixed":
-        const fixAccount = accounts?.find((a) => a.id === action.targetAccountId)
-        const fixGoal = goals?.find((g) => g.id === action.targetGoalId)
+        const fixAccount = safeAccounts.find((a) => a.id === action.targetAccountId)
+        const fixGoal = safeGoals.find((g) => g.id === action.targetGoalId)
         const fixTarget = fixGoal?.name || fixAccount?.name || "?"
         return `Transferir ${formatCurrency(action.fixedAmount || 0)} para ${fixTarget}`
       case "auto_categorize":
-        const categ = categories?.find((c) => c.id === action.categoryId)
+        const categ = safeCategories.find((c) => c.id === action.categoryId)
         return `Categorizar como "${categ?.name || action.categoryId}"`
       case "create_recurring":
         return "Criar transação recorrente"
@@ -310,7 +315,7 @@ export function AutomaticRules() {
                         <SelectValue placeholder="Selecionar categoria" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(categories || []).map((cat) => (
+                        {safeCategories.map((cat) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             {cat.name}
                           </SelectItem>
@@ -352,7 +357,8 @@ export function AutomaticRules() {
                       <Select
                         value={targetGoalId || targetAccountId}
                         onValueChange={(v) => {
-                          if ((goals || []).find((g) => g.id === v)) {
+                          const isGoal = safeGoals.find((g) => g.id === v)
+                          if (isGoal) {
                             setTargetGoalId(v)
                             setTargetAccountId("")
                           } else {
@@ -365,24 +371,32 @@ export function AutomaticRules() {
                           <SelectValue placeholder="Selecionar destino" />
                         </SelectTrigger>
                         <SelectContent>
-                          {(accounts || []).length > 0 && (
+                          {safeAccounts.length > 0 && (
                             <>
-                              <SelectItem value="_accounts_label" disabled className="font-semibold">
-                                Contas
+                              <SelectItem
+                                value="_accounts_label"
+                                disabled
+                                className="font-semibold text-xs text-muted-foreground"
+                              >
+                                — Contas —
                               </SelectItem>
-                              {(accounts || []).map((acc) => (
+                              {safeAccounts.map((acc) => (
                                 <SelectItem key={acc.id} value={acc.id}>
                                   {acc.name}
                                 </SelectItem>
                               ))}
                             </>
                           )}
-                          {(goals || []).length > 0 && (
+                          {safeGoals.length > 0 && (
                             <>
-                              <SelectItem value="_goals_label" disabled className="font-semibold">
-                                Metas
+                              <SelectItem
+                                value="_goals_label"
+                                disabled
+                                className="font-semibold text-xs text-muted-foreground"
+                              >
+                                — Metas —
                               </SelectItem>
-                              {(goals || []).map((goal) => (
+                              {safeGoals.map((goal) => (
                                 <SelectItem key={goal.id} value={goal.id}>
                                   {goal.name}
                                 </SelectItem>
@@ -430,7 +444,7 @@ export function AutomaticRules() {
                         <SelectValue placeholder="Selecionar categoria" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(categories || []).map((cat) => (
+                        {safeCategories.map((cat) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             {cat.name}
                           </SelectItem>

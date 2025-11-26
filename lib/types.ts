@@ -8,8 +8,8 @@ export interface Transaction {
   type: TransactionType
   category: string
   accountId?: string
-  toAccountId?: string // Added toAccountId for transfers
-  goalId?: string // Added goalId to track goal deposits for proper reversal
+  toAccountId?: string
+  goalId?: string
   isRecurring?: boolean
   recurringFrequency?: "monthly" | "weekly" | "yearly"
   nextDueDate?: string
@@ -91,5 +91,6 @@ export const DEFAULT_CATEGORIES: Category[] = [
 export const DEFAULT_ACCOUNTS = [
   { name: "Conta à Ordem", type: "checking" as const, balance: 0, color: "#10B981", icon: "credit-card" },
   { name: "Conta Poupança", type: "savings" as const, balance: 0, color: "#3B82F6", icon: "piggy-bank" },
+  { name: "Conta Investimentos", type: "investment" as const, balance: 0, color: "#8B5CF6", icon: "trending-up" },
   { name: "Dinheiro", type: "cash" as const, balance: 0, color: "#F59E0B", icon: "banknote" },
 ]
