@@ -22,20 +22,18 @@ import { Plus, Zap, Pencil, Trash2, ArrowRight, Sparkles, CheckCircle2, Clock } 
 import type { AutoRule } from "@/lib/types"
 
 export function AutomaticRules() {
-  const {
-    accounts = [],
-    goals = [],
-    categories = [],
-    rules,
-    addRule,
-    updateRule,
-    deleteRule,
-    executeRule,
-  } = useFinance()
+  const financeContext = useFinance()
+
+  const accounts = financeContext?.accounts || []
+  const goals = financeContext?.goals || []
+  const categories = financeContext?.categories || []
+  const rules = financeContext?.rules || []
+  const addRule = financeContext?.addRule
+  const updateRule = financeContext?.updateRule
+  const deleteRule = financeContext?.deleteRule
 
   const [isOpen, setIsOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
-  const [isExecuting, setIsExecuting] = useState<string | null>(null)
 
   // Form state
   const [name, setName] = useState("")
@@ -47,10 +45,6 @@ export function AutomaticRules() {
   const [fixedAmount, setFixedAmount] = useState("")
   const [targetAccountId, setTargetAccountId] = useState("")
   const [targetGoalId, setTargetGoalId] = useState("")
-
-  const safeAccounts = accounts || []
-  const safeGoals = goals || []
-  const safeCategories = categories || []
 
   const resetForm = () => {
     setName("")
@@ -69,7 +63,7 @@ export function AutomaticRules() {
     setEditingRule(rule)
     setName(rule.name)
     setTriggerType(rule.trigger.type)
-    setTriggerValue(rule.trigger.value)
+    setTriggerValue(rule.trigger.value || "")
     setTriggerCategory(rule.trigger.category || "")
     setActionType(rule.action.type)
     setPercentage(rule.action.percentage?.toString() || "10")
@@ -80,6 +74,11 @@ export function AutomaticRules() {
   }
 
   const handleSaveRule = () => {
+    if (!addRule || !updateRule) {
+      console.error("[v0] addRule or updateRule function not available")
+      return
+    }
+
     const ruleData = {
       name,
       enabled: true,
@@ -108,21 +107,14 @@ export function AutomaticRules() {
   }
 
   const handleToggleRule = (ruleId: string, enabled: boolean) => {
-    updateRule(ruleId, { enabled })
-  }
-
-  const handleDeleteRule = (ruleId: string) => {
-    if (confirm("Tem a certeza que deseja eliminar esta regra?")) {
-      deleteRule(ruleId)
+    if (updateRule) {
+      updateRule(ruleId, { enabled })
     }
   }
 
-  const handleExecuteRule = async (ruleId: string) => {
-    setIsExecuting(ruleId)
-    try {
-      await executeRule(ruleId)
-    } finally {
-      setIsExecuting(null)
+  const handleDeleteRule = (ruleId: string) => {
+    if (deleteRule && confirm("Tem a certeza que deseja eliminar esta regra?")) {
+      deleteRule(ruleId)
     }
   }
 
@@ -143,9 +135,9 @@ export function AutomaticRules() {
 
   const getActionLabel = (action: AutoRule["action"]) => {
     const target = action.targetAccountId
-      ? safeAccounts.find((a) => a.id === action.targetAccountId)?.name
+      ? accounts.find((a) => a.id === action.targetAccountId)?.name
       : action.targetGoalId
-        ? safeGoals.find((g) => g.id === action.targetGoalId)?.name
+        ? goals.find((g) => g.id === action.targetGoalId)?.name
         : "Destino desconhecido"
 
     switch (action.type) {
@@ -230,7 +222,7 @@ export function AutomaticRules() {
                       <SelectValue placeholder="Selecione uma categoria" />
                     </SelectTrigger>
                     <SelectContent>
-                      {safeCategories.map((cat) => (
+                      {categories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.name}>
                           {cat.name}
                         </SelectItem>
@@ -297,7 +289,8 @@ export function AutomaticRules() {
                 <Select
                   value={targetAccountId || targetGoalId || ""}
                   onValueChange={(v) => {
-                    if (safeAccounts.find((a) => a.id === v)) {
+                    const isAccount = accounts.some((a) => a.id === v)
+                    if (isAccount) {
                       setTargetAccountId(v)
                       setTargetGoalId("")
                     } else {
@@ -310,20 +303,20 @@ export function AutomaticRules() {
                     <SelectValue placeholder="Selecione conta ou meta" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="" disabled>
-                      -- Contas --
-                    </SelectItem>
-                    {safeAccounts.map((acc) => (
-                      <SelectItem key={acc.id} value={acc.id}>
-                        {acc.name}
-                      </SelectItem>
-                    ))}
-                    {safeGoals.length > 0 && (
+                    {accounts.length > 0 && (
                       <>
-                        <SelectItem value="" disabled>
-                          -- Metas --
-                        </SelectItem>
-                        {safeGoals.map((goal) => (
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Contas</div>
+                        {accounts.map((acc) => (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            {acc.name}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                    {goals.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">Metas</div>
+                        {goals.map((goal) => (
                           <SelectItem key={goal.id} value={goal.id}>
                             {goal.name}
                           </SelectItem>
@@ -424,7 +417,7 @@ export function AutomaticRules() {
                               Inativa
                             </Badge>
                           )}
-                          {rule.executionCount > 0 && (
+                          {rule.executionCount && rule.executionCount > 0 && (
                             <Badge variant="outline" className="text-xs">
                               {rule.executionCount}x executada
                             </Badge>
