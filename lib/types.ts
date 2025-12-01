@@ -94,3 +94,24 @@ export const DEFAULT_ACCOUNTS = [
   { name: "Conta Investimentos", type: "investment" as const, balance: 0, color: "#8B5CF6", icon: "trending-up" },
   { name: "Dinheiro", type: "cash" as const, balance: 0, color: "#F59E0B", icon: "banknote" },
 ]
+
+export interface AutoRule {
+  id: string
+  name: string
+  enabled: boolean
+  trigger: {
+    type: "income_received" | "expense_contains" | "amount_above" | "category_match"
+    value: string
+    category?: string
+  }
+  action: {
+    type: "transfer_percentage" | "transfer_fixed" | "categorize"
+    percentage?: number
+    fixedAmount?: number
+    targetAccountId?: string
+    targetGoalId?: string
+    targetCategory?: string
+  }
+  lastExecuted?: string
+  executionCount: number
+}
