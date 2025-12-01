@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useFinance } from "@/components/providers/finance-provider"
 import { useCurrency } from "@/contexts/currency-context"
 import { Button } from "@/components/ui/button"
@@ -28,7 +28,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Plus, Trash2, ArrowRight, PiggyBank, Tag, Repeat, Settings2, Pencil } from "lucide-react"
+import { Zap, Plus, Trash2, ArrowRight, PiggyBank, Tag, Repeat, Settings2, Pencil, Play } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface AutoRule {
   id: string
@@ -54,16 +55,22 @@ const RULE_STORAGE_KEY = "cashboard_auto_rules"
 export function AutomaticRules() {
   const financeContext = useFinance()
   const { formatCurrency } = useCurrency()
+  const { toast } = useToast()
   const [rules, setRules] = useState<AutoRule[]>([])
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [executingRuleId, setExecutingRuleId] = useState<string | null>(null)
 
-  // Safe access to arrays
+  // Safe access to arrays and functions
   const accounts = financeContext?.accounts || []
   const goals = financeContext?.goals || []
   const categories = financeContext?.categories || []
+  const transactions = financeContext?.transactions || []
+  const addTransaction = financeContext?.addTransaction
+  const updateAccount = financeContext?.updateAccount
+  const updateGoal = financeContext?.updateGoal
 
   // Form state
   const [ruleName, setRuleName] = useState("")
@@ -134,7 +141,14 @@ export function AutomaticRules() {
   }
 
   const handleSaveRule = () => {
-    if (!ruleName.trim()) return
+    if (!ruleName.trim()) {
+      toast({
+        title: "Erro",
+        description: "O nome da regra é obrigatório.",
+        variant: "destructive",
+      })
+      return
+    }
 
     const ruleData: AutoRule = {
       id: editingRule?.id || crypto.randomUUID(),
@@ -156,16 +170,149 @@ export function AutomaticRules() {
     }
 
     if (editingRule) {
-      // Update existing rule
       saveRules(rules.map((r) => (r.id === editingRule.id ? ruleData : r)))
+      toast({
+        title: "Regra atualizada",
+        description: `A regra "${ruleName}" foi atualizada com sucesso.`,
+      })
     } else {
-      // Add new rule
       saveRules([...rules, ruleData])
+      toast({
+        title: "Regra criada",
+        description: `A regra "${ruleName}" foi criada com sucesso.`,
+      })
     }
 
     resetForm()
     setIsAddOpen(false)
   }
+
+  const executeRule = useCallback(
+    async (rule: AutoRule) => {
+      if (!rule.enabled) return
+
+      setExecutingRuleId(rule.id)
+
+      try {
+        // Find recent matching transactions
+        const recentTx = transactions.filter((t) => {
+          const txDate = new Date(t.date)
+          const now = new Date()
+          const daysDiff = (now.getTime() - txDate.getTime()) / (1000 * 60 * 60 * 24)
+          if (daysDiff > 30) return false // Only last 30 days
+
+          switch (rule.trigger.type) {
+            case "income_received":
+              if (t.type !== "income") return false
+              if (rule.trigger.value && !t.description.toLowerCase().includes(rule.trigger.value.toLowerCase()))
+                return false
+              return true
+            case "expense_contains":
+              if (t.type !== "expense") return false
+              if (!t.description.toLowerCase().includes(rule.trigger.value.toLowerCase())) return false
+              return true
+            case "amount_above":
+              return t.amount > Number.parseFloat(rule.trigger.value)
+            case "category_match":
+              return t.category === rule.trigger.category
+            default:
+              return false
+          }
+        })
+
+        if (recentTx.length === 0) {
+          toast({
+            title: "Sem transações correspondentes",
+            description: "Não foram encontradas transações que correspondam a esta regra nos últimos 30 dias.",
+          })
+          setExecutingRuleId(null)
+          return
+        }
+
+        // Calculate total amount to act on
+        const totalAmount = recentTx.reduce((sum, t) => sum + t.amount, 0)
+        let amountToTransfer = 0
+
+        if (rule.action.type === "transfer_percentage" && rule.action.percentage) {
+          amountToTransfer = (totalAmount * rule.action.percentage) / 100
+        } else if (rule.action.type === "transfer_fixed" && rule.action.fixedAmount) {
+          amountToTransfer = rule.action.fixedAmount
+        }
+
+        if (amountToTransfer > 0) {
+          // Find source account (first account with sufficient balance)
+          const sourceAccount = accounts.find((a) => a.balance >= amountToTransfer)
+
+          if (!sourceAccount) {
+            toast({
+              title: "Saldo insuficiente",
+              description: "Nenhuma conta tem saldo suficiente para esta transferência.",
+              variant: "destructive",
+            })
+            setExecutingRuleId(null)
+            return
+          }
+
+          // Execute transfer
+          if (rule.action.targetGoalId) {
+            const targetGoal = goals.find((g) => g.id === rule.action.targetGoalId)
+            if (targetGoal && updateGoal && updateAccount) {
+              await updateAccount(sourceAccount.id, { balance: sourceAccount.balance - amountToTransfer })
+              await updateGoal(rule.action.targetGoalId, { currentAmount: targetGoal.currentAmount + amountToTransfer })
+
+              if (addTransaction) {
+                await addTransaction({
+                  type: "savings",
+                  amount: amountToTransfer,
+                  description: `[Auto] ${rule.name}: ${sourceAccount.name} → ${targetGoal.name}`,
+                  category: "Automação",
+                  date: new Date().toISOString().split("T")[0],
+                  accountId: sourceAccount.id,
+                })
+              }
+
+              toast({
+                title: "Regra executada",
+                description: `Transferidos ${formatCurrency(amountToTransfer)} para ${targetGoal.name}.`,
+              })
+            }
+          } else if (rule.action.targetAccountId) {
+            const targetAccount = accounts.find((a) => a.id === rule.action.targetAccountId)
+            if (targetAccount && updateAccount) {
+              await updateAccount(sourceAccount.id, { balance: sourceAccount.balance - amountToTransfer })
+              await updateAccount(targetAccount.id, { balance: targetAccount.balance + amountToTransfer })
+
+              if (addTransaction) {
+                await addTransaction({
+                  type: "savings",
+                  amount: amountToTransfer,
+                  description: `[Auto] ${rule.name}: ${sourceAccount.name} → ${targetAccount.name}`,
+                  category: "Automação",
+                  date: new Date().toISOString().split("T")[0],
+                  accountId: sourceAccount.id,
+                })
+              }
+
+              toast({
+                title: "Regra executada",
+                description: `Transferidos ${formatCurrency(amountToTransfer)} para ${targetAccount.name}.`,
+              })
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[v0] Error executing rule:", error)
+        toast({
+          title: "Erro",
+          description: "Ocorreu um erro ao executar a regra.",
+          variant: "destructive",
+        })
+      }
+
+      setExecutingRuleId(null)
+    },
+    [transactions, accounts, goals, addTransaction, updateAccount, updateGoal, formatCurrency, toast],
+  )
 
   const toggleRule = (id: string) => {
     const newRules = rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r))
@@ -175,6 +322,10 @@ export function AutomaticRules() {
   const deleteRule = (id: string) => {
     saveRules(rules.filter((r) => r.id !== id))
     setDeletingRuleId(null)
+    toast({
+      title: "Regra eliminada",
+      description: "A regra foi eliminada com sucesso.",
+    })
   }
 
   const getTriggerLabel = (trigger: AutoRule["trigger"]) => {
@@ -299,30 +450,19 @@ export function AutomaticRules() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="income_received">Receber Rendimento</SelectItem>
-                      <SelectItem value="expense_contains">Despesa Contém Texto</SelectItem>
-                      <SelectItem value="amount_above">Valor Acima De</SelectItem>
-                      <SelectItem value="category_match">Categoria Específica</SelectItem>
+                      <SelectItem value="income_received">Receber rendimento</SelectItem>
+                      <SelectItem value="expense_contains">Despesa contiver texto</SelectItem>
+                      <SelectItem value="amount_above">Valor acima de</SelectItem>
+                      <SelectItem value="category_match">Categoria específica</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {triggerType === "income_received" && (
+                {(triggerType === "income_received" || triggerType === "expense_contains") && (
                   <div className="space-y-2">
-                    <Label>Descrição contém (opcional)</Label>
+                    <Label>Texto (opcional)</Label>
                     <Input
-                      placeholder="Ex: Salário, Freelance..."
-                      value={triggerValue}
-                      onChange={(e) => setTriggerValue(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {triggerType === "expense_contains" && (
-                  <div className="space-y-2">
-                    <Label>Texto na descrição</Label>
-                    <Input
-                      placeholder="Ex: Netflix, Spotify..."
+                      placeholder="Ex: Salário, Netflix..."
                       value={triggerValue}
                       onChange={(e) => setTriggerValue(e.target.value)}
                     />
@@ -331,7 +471,7 @@ export function AutomaticRules() {
 
                 {triggerType === "amount_above" && (
                   <div className="space-y-2">
-                    <Label>Valor mínimo (€)</Label>
+                    <Label>Valor mínimo</Label>
                     <Input
                       type="number"
                       placeholder="100"
@@ -360,13 +500,9 @@ export function AutomaticRules() {
                 )}
               </div>
 
-              <div className="flex justify-center">
-                <ArrowRight className="h-5 w-5 text-muted-foreground" />
-              </div>
-
               <div className="space-y-4 p-4 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2 text-sm font-medium">
-                  <Zap className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4" />
                   Então...
                 </div>
 
@@ -377,88 +513,84 @@ export function AutomaticRules() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="transfer_percentage">Transferir Percentagem</SelectItem>
-                      <SelectItem value="transfer_fixed">Transferir Valor Fixo</SelectItem>
-                      <SelectItem value="auto_categorize">Categorizar Automaticamente</SelectItem>
+                      <SelectItem value="transfer_percentage">Transferir percentagem</SelectItem>
+                      <SelectItem value="transfer_fixed">Transferir valor fixo</SelectItem>
+                      <SelectItem value="auto_categorize">Categorizar automaticamente</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
+                {actionType === "transfer_percentage" && (
+                  <div className="space-y-2">
+                    <Label>Percentagem</Label>
+                    <Input
+                      type="number"
+                      placeholder="10"
+                      value={percentage}
+                      onChange={(e) => setPercentage(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {actionType === "transfer_fixed" && (
+                  <div className="space-y-2">
+                    <Label>Valor</Label>
+                    <Input
+                      type="number"
+                      placeholder="100"
+                      value={fixedAmount}
+                      onChange={(e) => setFixedAmount(e.target.value)}
+                    />
+                  </div>
+                )}
+
                 {(actionType === "transfer_percentage" || actionType === "transfer_fixed") && (
                   <>
                     <div className="space-y-2">
-                      <Label>Destino</Label>
+                      <Label>Para Conta</Label>
                       <Select
-                        value={targetGoalId || targetAccountId}
+                        value={targetAccountId}
                         onValueChange={(v) => {
-                          const isGoal = goals.find((g) => g.id === v)
-                          if (isGoal) {
-                            setTargetGoalId(v)
-                            setTargetAccountId("")
-                          } else {
-                            setTargetAccountId(v)
-                            setTargetGoalId("")
-                          }
+                          setTargetAccountId(v)
+                          setTargetGoalId("")
                         }}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecionar destino" />
+                          <SelectValue placeholder="Selecionar conta" />
                         </SelectTrigger>
                         <SelectContent>
-                          {accounts.length > 0 && (
-                            <>
-                              <SelectItem value="_accounts_label" disabled className="font-semibold text-xs">
-                                — Contas —
-                              </SelectItem>
-                              {accounts.map((acc) => (
-                                <SelectItem key={acc.id} value={acc.id}>
-                                  {acc.name}
-                                </SelectItem>
-                              ))}
-                            </>
-                          )}
-                          {goals.length > 0 && (
-                            <>
-                              <SelectItem value="_goals_label" disabled className="font-semibold text-xs">
-                                — Metas —
-                              </SelectItem>
-                              {goals.map((goal) => (
-                                <SelectItem key={goal.id} value={goal.id}>
-                                  {goal.name}
-                                </SelectItem>
-                              ))}
-                            </>
-                          )}
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          {accounts.map((acc) => (
+                            <SelectItem key={acc.id} value={acc.id}>
+                              {acc.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
 
-                    {actionType === "transfer_percentage" && (
-                      <div className="space-y-2">
-                        <Label>Percentagem (%)</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="100"
-                          placeholder="10"
-                          value={percentage}
-                          onChange={(e) => setPercentage(e.target.value)}
-                        />
-                      </div>
-                    )}
-
-                    {actionType === "transfer_fixed" && (
-                      <div className="space-y-2">
-                        <Label>Valor (€)</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          placeholder="50"
-                          value={fixedAmount}
-                          onChange={(e) => setFixedAmount(e.target.value)}
-                        />
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      <Label>Ou Para Meta</Label>
+                      <Select
+                        value={targetGoalId}
+                        onValueChange={(v) => {
+                          setTargetGoalId(v)
+                          setTargetAccountId("")
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecionar meta" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          {goals.map((goal) => (
+                            <SelectItem key={goal.id} value={goal.id}>
+                              {goal.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </>
                 )}
 
@@ -481,7 +613,7 @@ export function AutomaticRules() {
                 )}
               </div>
 
-              <Button onClick={handleSaveRule} className="w-full" disabled={!ruleName.trim()}>
+              <Button onClick={handleSaveRule} className="w-full">
                 {editingRule ? "Guardar Alterações" : "Criar Regra"}
               </Button>
             </div>
@@ -489,66 +621,61 @@ export function AutomaticRules() {
         </Dialog>
       </div>
 
+      {/* Rules List */}
       {rules.length === 0 ? (
-        <Card className="bg-card/50 backdrop-blur-sm border-dashed">
+        <Card className="bg-card/50 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="p-4 rounded-full bg-muted mb-4">
-              <Zap className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="font-semibold text-lg mb-2">Sem Regras Configuradas</h3>
-            <p className="text-muted-foreground max-w-sm mb-4">
+            <Zap className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            <h4 className="font-medium mb-2">Sem regras automáticas</h4>
+            <p className="text-sm text-muted-foreground max-w-sm">
               Cria regras para automatizar transferências e categorizações.
             </p>
-            <Button onClick={() => setIsAddOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Criar Primeira Regra
-            </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-3">
           {rules.map((rule) => (
             <Card
               key={rule.id}
-              className={`bg-card/50 backdrop-blur-sm transition-all ${
-                rule.enabled ? "border-border/50" : "border-border/30 opacity-60"
-              }`}
+              className={`bg-card/50 backdrop-blur-sm transition-all duration-300 ${!rule.enabled ? "opacity-60" : ""}`}
             >
               <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{rule.name}</span>
-                      {rule.enabled && (
-                        <Badge variant="secondary" className="text-xs">
-                          Ativa
-                        </Badge>
-                      )}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className={`p-2 rounded-lg ${rule.enabled ? "bg-primary/10" : "bg-muted"}`}>
+                      {getActionIcon(rule.action.type)}
                     </div>
-                    <p className="text-xs text-muted-foreground">{getTriggerLabel(rule.trigger)}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-medium truncate">{rule.name}</h4>
+                        <Badge variant={rule.enabled ? "default" : "secondary"} className="text-xs shrink-0">
+                          {rule.enabled ? "Ativa" : "Inativa"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{getTriggerLabel(rule.trigger)}</p>
+                      <p className="text-sm font-medium text-primary">{getActionLabel(rule.action)}</p>
+                    </div>
                   </div>
-                  <Switch checked={rule.enabled} onCheckedChange={() => toggleRule(rule.id)} />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="p-1.5 rounded bg-primary/10">{getActionIcon(rule.action.type)}</div>
-                    <span className="text-muted-foreground">{getActionLabel(rule.action)}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-2 shrink-0">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-primary"
-                      onClick={() => handleEditRule(rule)}
+                      onClick={() => executeRule(rule)}
+                      disabled={!rule.enabled || executingRuleId === rule.id}
+                      className="h-8 w-8"
+                      title="Executar agora"
                     >
+                      <Play className={`h-4 w-4 ${executingRuleId === rule.id ? "animate-pulse" : ""}`} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleEditRule(rule)} className="h-8 w-8">
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    <Switch checked={rule.enabled} onCheckedChange={() => toggleRule(rule.id)} />
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       onClick={() => setDeletingRuleId(rule.id)}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -560,22 +687,18 @@ export function AutomaticRules() {
         </div>
       )}
 
-      <AlertDialog open={!!deletingRuleId} onOpenChange={(open) => !open && setDeletingRuleId(null)}>
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deletingRuleId} onOpenChange={() => setDeletingRuleId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar Regra</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem a certeza que deseja eliminar esta regra? Esta ação não pode ser revertida.
+              Tens a certeza que queres eliminar esta regra? Esta ação não pode ser revertida.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deletingRuleId && deleteRule(deletingRuleId)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Eliminar
-            </AlertDialogAction>
+            <AlertDialogAction onClick={() => deletingRuleId && deleteRule(deletingRuleId)}>Eliminar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
