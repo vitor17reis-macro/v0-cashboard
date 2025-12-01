@@ -6,15 +6,18 @@ import { useCurrency } from "@/contexts/currency-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, Minus, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Minus, ArrowUpRight, ArrowDownRight, PiggyBank, TrendingUp } from "lucide-react"
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns"
 import { pt } from "date-fns/locale"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 
 export function MonthlyComparison() {
-  const { transactions, categories, accounts } = useFinance()
+  const { transactions, categories, accounts = [] } = useFinance()
   const { formatCurrency } = useCurrency()
   const [monthOffset, setMonthOffset] = useState(0)
+
+  const totalSavings = accounts.filter((a) => a.type === "savings").reduce((sum, a) => sum + a.balance, 0)
+  const totalInvestments = accounts.filter((a) => a.type === "investment").reduce((sum, a) => sum + a.balance, 0)
 
   const comparisonData = useMemo(() => {
     const currentMonth = subMonths(new Date(), monthOffset)
@@ -35,12 +38,10 @@ export function MonthlyComparison() {
       return isWithinInterval(date, { start: previousStart, end: previousEnd })
     })
 
-    // Calculate totals from transactions
+    // Calculate totals from transactions for income/expense only
     const calculate = (txs: typeof transactions) => ({
       income: txs.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0),
       expense: txs.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0),
-      investment: txs.filter((t) => t.type === "investment").reduce((sum, t) => sum + t.amount, 0),
-      savings: txs.filter((t) => t.type === "savings").reduce((sum, t) => sum + t.amount, 0),
     })
 
     const current = calculate(currentTx)
@@ -124,22 +125,6 @@ export function MonthlyComparison() {
       bgColor: "bg-expense/10",
       inverse: true,
     },
-    {
-      label: "Poupança",
-      current: comparisonData.current.savings,
-      previous: comparisonData.previous.savings,
-      color: "text-savings",
-      bgColor: "bg-savings/10",
-      inverse: false,
-    },
-    {
-      label: "Investimentos",
-      current: comparisonData.current.investment,
-      previous: comparisonData.previous.investment,
-      color: "text-investment",
-      bgColor: "bg-investment/10",
-      inverse: false,
-    },
   ]
 
   const chartData = [
@@ -147,13 +132,11 @@ export function MonthlyComparison() {
       name: comparisonData.previousMonth.split(" ")[0],
       Receitas: comparisonData.previous.income,
       Despesas: comparisonData.previous.expense,
-      Poupança: comparisonData.previous.savings + comparisonData.previous.investment,
     },
     {
       name: comparisonData.currentMonth.split(" ")[0],
       Receitas: comparisonData.current.income,
       Despesas: comparisonData.current.expense,
-      Poupança: comparisonData.current.savings + comparisonData.current.investment,
     },
   ]
 
@@ -190,6 +173,38 @@ export function MonthlyComparison() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border-cyan-500/20">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-cyan-500/20 flex items-center justify-center">
+                <PiggyBank className="h-6 w-6 text-cyan-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total em Poupança</p>
+                <p className="text-2xl font-bold text-cyan-600">{formatCurrency(totalSavings)}</p>
+                <p className="text-xs text-muted-foreground">Saldo atual das contas poupança</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-violet-500/10 to-violet-600/5 border-violet-500/20">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-violet-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Investido</p>
+                <p className="text-2xl font-bold text-violet-600">{formatCurrency(totalInvestments)}</p>
+                <p className="text-xs text-muted-foreground">Saldo atual das contas investimento</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Balance Overview */}
       <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
         <CardContent className="p-6">
@@ -209,8 +224,8 @@ export function MonthlyComparison() {
         </CardContent>
       </Card>
 
-      {/* Summary Cards - only 4 cards, no duplicates */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary Cards - only Receitas and Despesas */}
+      <div className="grid grid-cols-2 gap-4">
         {summaryCards.map((card) => {
           const change = getChangeIndicator(card.current, card.previous, card.inverse)
           return (
@@ -235,7 +250,7 @@ export function MonthlyComparison() {
       <Card className="bg-card/50 backdrop-blur-sm border-border/50">
         <CardHeader>
           <CardTitle className="text-base">Comparativo Visual</CardTitle>
-          <CardDescription>Receitas, despesas e poupança lado a lado</CardDescription>
+          <CardDescription>Receitas e despesas lado a lado</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">
@@ -265,7 +280,6 @@ export function MonthlyComparison() {
                 <Legend />
                 <Bar dataKey="Receitas" fill="hsl(var(--income))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Despesas" fill="hsl(var(--expense))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Poupança" fill="hsl(var(--savings))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
