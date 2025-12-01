@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Plus, Trash2, ArrowRight, PiggyBank, Tag, Repeat, Settings2 } from "lucide-react"
+import { Zap, Plus, Trash2, ArrowRight, PiggyBank, Tag, Repeat, Settings2, Pencil } from "lucide-react"
 
 interface AutoRule {
   id: string
@@ -52,12 +52,18 @@ interface AutoRule {
 const RULE_STORAGE_KEY = "cashboard_auto_rules"
 
 export function AutomaticRules() {
-  const { accounts = [], goals = [], categories = [] } = useFinance()
+  const financeContext = useFinance()
   const { formatCurrency } = useCurrency()
   const [rules, setRules] = useState<AutoRule[]>([])
   const [isAddOpen, setIsAddOpen] = useState(false)
+  const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
+
+  // Safe access to arrays
+  const accounts = financeContext?.accounts || []
+  const goals = financeContext?.goals || []
+  const categories = financeContext?.categories || []
 
   // Form state
   const [ruleName, setRuleName] = useState("")
@@ -94,13 +100,46 @@ export function AutomaticRules() {
     }
   }
 
-  const handleAddRule = () => {
+  const resetForm = () => {
+    setRuleName("")
+    setTriggerType("income_received")
+    setTriggerValue("")
+    setTriggerCategory("")
+    setActionType("transfer_percentage")
+    setTargetAccountId("")
+    setTargetGoalId("")
+    setPercentage("")
+    setFixedAmount("")
+    setCategoryId("")
+    setEditingRule(null)
+  }
+
+  const populateFormFromRule = (rule: AutoRule) => {
+    setRuleName(rule.name)
+    setTriggerType(rule.trigger.type)
+    setTriggerValue(rule.trigger.value)
+    setTriggerCategory(rule.trigger.category || "")
+    setActionType(rule.action.type)
+    setTargetAccountId(rule.action.targetAccountId || "")
+    setTargetGoalId(rule.action.targetGoalId || "")
+    setPercentage(rule.action.percentage?.toString() || "")
+    setFixedAmount(rule.action.fixedAmount?.toString() || "")
+    setCategoryId(rule.action.categoryId || "")
+  }
+
+  const handleEditRule = (rule: AutoRule) => {
+    setEditingRule(rule)
+    populateFormFromRule(rule)
+    setIsAddOpen(true)
+  }
+
+  const handleSaveRule = () => {
     if (!ruleName.trim()) return
 
-    const newRule: AutoRule = {
-      id: crypto.randomUUID(),
+    const ruleData: AutoRule = {
+      id: editingRule?.id || crypto.randomUUID(),
       name: ruleName,
-      enabled: true,
+      enabled: editingRule?.enabled ?? true,
       trigger: {
         type: triggerType,
         value: triggerValue,
@@ -116,22 +155,16 @@ export function AutomaticRules() {
       },
     }
 
-    saveRules([...rules, newRule])
+    if (editingRule) {
+      // Update existing rule
+      saveRules(rules.map((r) => (r.id === editingRule.id ? ruleData : r)))
+    } else {
+      // Add new rule
+      saveRules([...rules, ruleData])
+    }
+
     resetForm()
     setIsAddOpen(false)
-  }
-
-  const resetForm = () => {
-    setRuleName("")
-    setTriggerType("income_received")
-    setTriggerValue("")
-    setTriggerCategory("")
-    setActionType("transfer_percentage")
-    setTargetAccountId("")
-    setTargetGoalId("")
-    setPercentage("")
-    setFixedAmount("")
-    setCategoryId("")
   }
 
   const toggleRule = (id: string) => {
@@ -144,11 +177,6 @@ export function AutomaticRules() {
     setDeletingRuleId(null)
   }
 
-  // Safe array access
-  const safeAccounts = accounts || []
-  const safeGoals = goals || []
-  const safeCategories = categories || []
-
   const getTriggerLabel = (trigger: AutoRule["trigger"]) => {
     switch (trigger.type) {
       case "income_received":
@@ -158,7 +186,7 @@ export function AutomaticRules() {
       case "amount_above":
         return `Quando valor acima de ${formatCurrency(Number.parseFloat(trigger.value) || 0)}`
       case "category_match":
-        const cat = safeCategories.find((c) => c.id === trigger.category)
+        const cat = categories.find((c) => c.id === trigger.category)
         return `Quando categoria for "${cat?.name || trigger.category}"`
     }
   }
@@ -166,17 +194,17 @@ export function AutomaticRules() {
   const getActionLabel = (action: AutoRule["action"]) => {
     switch (action.type) {
       case "transfer_percentage":
-        const pctAccount = safeAccounts.find((a) => a.id === action.targetAccountId)
-        const pctGoal = safeGoals.find((g) => g.id === action.targetGoalId)
+        const pctAccount = accounts.find((a) => a.id === action.targetAccountId)
+        const pctGoal = goals.find((g) => g.id === action.targetGoalId)
         const target = pctGoal?.name || pctAccount?.name || "?"
         return `Transferir ${action.percentage}% para ${target}`
       case "transfer_fixed":
-        const fixAccount = safeAccounts.find((a) => a.id === action.targetAccountId)
-        const fixGoal = safeGoals.find((g) => g.id === action.targetGoalId)
+        const fixAccount = accounts.find((a) => a.id === action.targetAccountId)
+        const fixGoal = goals.find((g) => g.id === action.targetGoalId)
         const fixTarget = fixGoal?.name || fixAccount?.name || "?"
         return `Transferir ${formatCurrency(action.fixedAmount || 0)} para ${fixTarget}`
       case "auto_categorize":
-        const categ = safeCategories.find((c) => c.id === action.categoryId)
+        const categ = categories.find((c) => c.id === action.categoryId)
         return `Categorizar como "${categ?.name || action.categoryId}"`
       case "create_recurring":
         return "Criar transação recorrente"
@@ -230,7 +258,13 @@ export function AutomaticRules() {
             <p className="text-sm text-muted-foreground">Automatiza transferências e categorizações</p>
           </div>
         </div>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <Dialog
+          open={isAddOpen}
+          onOpenChange={(open) => {
+            setIsAddOpen(open)
+            if (!open) resetForm()
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -239,7 +273,7 @@ export function AutomaticRules() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Criar Regra Automática</DialogTitle>
+              <DialogTitle>{editingRule ? "Editar Regra" : "Criar Regra Automática"}</DialogTitle>
               <DialogDescription>Define quando e o que acontece automaticamente.</DialogDescription>
             </DialogHeader>
             <div className="space-y-6 py-4">
@@ -315,7 +349,7 @@ export function AutomaticRules() {
                         <SelectValue placeholder="Selecionar categoria" />
                       </SelectTrigger>
                       <SelectContent>
-                        {safeCategories.map((cat) => (
+                        {categories.map((cat) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             {cat.name}
                           </SelectItem>
@@ -357,7 +391,7 @@ export function AutomaticRules() {
                       <Select
                         value={targetGoalId || targetAccountId}
                         onValueChange={(v) => {
-                          const isGoal = safeGoals.find((g) => g.id === v)
+                          const isGoal = goals.find((g) => g.id === v)
                           if (isGoal) {
                             setTargetGoalId(v)
                             setTargetAccountId("")
@@ -371,32 +405,24 @@ export function AutomaticRules() {
                           <SelectValue placeholder="Selecionar destino" />
                         </SelectTrigger>
                         <SelectContent>
-                          {safeAccounts.length > 0 && (
+                          {accounts.length > 0 && (
                             <>
-                              <SelectItem
-                                value="_accounts_label"
-                                disabled
-                                className="font-semibold text-xs text-muted-foreground"
-                              >
+                              <SelectItem value="_accounts_label" disabled className="font-semibold text-xs">
                                 — Contas —
                               </SelectItem>
-                              {safeAccounts.map((acc) => (
+                              {accounts.map((acc) => (
                                 <SelectItem key={acc.id} value={acc.id}>
                                   {acc.name}
                                 </SelectItem>
                               ))}
                             </>
                           )}
-                          {safeGoals.length > 0 && (
+                          {goals.length > 0 && (
                             <>
-                              <SelectItem
-                                value="_goals_label"
-                                disabled
-                                className="font-semibold text-xs text-muted-foreground"
-                              >
+                              <SelectItem value="_goals_label" disabled className="font-semibold text-xs">
                                 — Metas —
                               </SelectItem>
-                              {safeGoals.map((goal) => (
+                              {goals.map((goal) => (
                                 <SelectItem key={goal.id} value={goal.id}>
                                   {goal.name}
                                 </SelectItem>
@@ -444,7 +470,7 @@ export function AutomaticRules() {
                         <SelectValue placeholder="Selecionar categoria" />
                       </SelectTrigger>
                       <SelectContent>
-                        {safeCategories.map((cat) => (
+                        {categories.map((cat) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             {cat.name}
                           </SelectItem>
@@ -455,8 +481,8 @@ export function AutomaticRules() {
                 )}
               </div>
 
-              <Button onClick={handleAddRule} className="w-full" disabled={!ruleName.trim()}>
-                Criar Regra
+              <Button onClick={handleSaveRule} className="w-full" disabled={!ruleName.trim()}>
+                {editingRule ? "Guardar Alterações" : "Criar Regra"}
               </Button>
             </div>
           </DialogContent>
@@ -488,36 +514,45 @@ export function AutomaticRules() {
                 rule.enabled ? "border-border/50" : "border-border/30 opacity-60"
               }`}
             >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      {rule.name}
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{rule.name}</span>
                       {rule.enabled && (
                         <Badge variant="secondary" className="text-xs">
                           Ativa
                         </Badge>
                       )}
-                    </CardTitle>
-                    <CardDescription className="text-xs">{getTriggerLabel(rule.trigger)}</CardDescription>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{getTriggerLabel(rule.trigger)}</p>
                   </div>
                   <Switch checked={rule.enabled} onCheckedChange={() => toggleRule(rule.id)} />
                 </div>
-              </CardHeader>
-              <CardContent className="pt-0">
+
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm">
                     <div className="p-1.5 rounded bg-primary/10">{getActionIcon(rule.action.type)}</div>
                     <span className="text-muted-foreground">{getActionLabel(rule.action)}</span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => setDeletingRuleId(rule.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary"
+                      onClick={() => handleEditRule(rule)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeletingRuleId(rule.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -528,16 +563,16 @@ export function AutomaticRules() {
       <AlertDialog open={!!deletingRuleId} onOpenChange={(open) => !open && setDeletingRuleId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar Regra?</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar Regra</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser revertida. A regra será eliminada permanentemente.
+              Tem a certeza que deseja eliminar esta regra? Esta ação não pode ser revertida.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingRuleId && deleteRule(deletingRuleId)}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Eliminar
             </AlertDialogAction>

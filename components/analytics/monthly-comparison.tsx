@@ -6,15 +6,27 @@ import { useCurrency } from "@/contexts/currency-context"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, Minus, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Minus, ArrowUpRight, ArrowDownRight, PiggyBank, TrendingUp } from "lucide-react"
 import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval } from "date-fns"
 import { pt } from "date-fns/locale"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 
 export function MonthlyComparison() {
-  const { transactions, categories } = useFinance()
+  const { transactions, categories, accounts } = useFinance()
   const { formatCurrency } = useCurrency()
   const [monthOffset, setMonthOffset] = useState(0)
+
+  const accountTotals = useMemo(() => {
+    const savingsAccounts = accounts.filter((a) => a.type === "savings" || a.name.toLowerCase().includes("poupança"))
+    const investmentAccounts = accounts.filter(
+      (a) => a.type === "investment" || a.name.toLowerCase().includes("investimento"),
+    )
+
+    return {
+      totalSavings: savingsAccounts.reduce((sum, a) => sum + a.balance, 0),
+      totalInvestment: investmentAccounts.reduce((sum, a) => sum + a.balance, 0),
+    }
+  }, [accounts])
 
   const comparisonData = useMemo(() => {
     const currentMonth = subMonths(new Date(), monthOffset)
@@ -35,7 +47,7 @@ export function MonthlyComparison() {
       return isWithinInterval(date, { start: previousStart, end: previousEnd })
     })
 
-    // Calculate totals
+    // Calculate totals from transactions
     const calculate = (txs: typeof transactions) => ({
       income: txs.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0),
       expense: txs.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0),
@@ -188,6 +200,35 @@ export function MonthlyComparison() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border-cyan-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-cyan-500/20">
+                <PiggyBank className="h-5 w-5 text-cyan-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total em Poupança</p>
+                <p className="text-2xl font-bold text-cyan-600">{formatCurrency(accountTotals.totalSavings)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-violet-500/10 to-violet-500/5 border-violet-500/20">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-violet-500/20">
+                <TrendingUp className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Investido</p>
+                <p className="text-2xl font-bold text-violet-600">{formatCurrency(accountTotals.totalInvestment)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Balance Overview */}

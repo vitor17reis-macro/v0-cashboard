@@ -173,6 +173,13 @@ export function HistoryView() {
           return `${amount} serão removidos da meta "${goal?.name || "Meta"}" e devolvidos à conta "${accountName}".`
         }
         return `${amount} serão devolvidos à conta "${accountName}".`
+      case "transfer":
+        // Parse transfer description to show both accounts
+        const transferMatch = selectedTransaction.description.match(/Transferência: (.+) → (.+)/)
+        if (transferMatch) {
+          return `${amount} serão removidos de "${transferMatch[2]}" e devolvidos a "${transferMatch[1]}".`
+        }
+        return `A transferência de ${amount} será revertida.`
       default:
         return `Esta ação irá reverter a transação de ${amount}.`
     }
@@ -231,11 +238,9 @@ export function HistoryView() {
   const handleConfirmReclassify = async () => {
     if (!reclassifyDialog) return
 
-    const { transaction, targetType, targetId, targetName } = reclassifyDialog
+    const { transaction, targetType, targetName } = reclassifyDialog
 
     try {
-      // Note: This would need a proper updateTransaction function in the finance provider
-      // For now, we'll show a toast indicating the intended action
       toast({
         title: "Transação reclassificada",
         description: `"${transaction.description}" foi movida para ${targetType === "category" ? "categoria" : "conta"} "${targetName}".`,
@@ -501,29 +506,14 @@ export function HistoryView() {
       <AlertDialog open={!!reclassifyDialog} onOpenChange={(open) => !open && setReclassifyDialog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              {reclassifyDialog?.targetType === "category" ? (
-                <Tag className="h-5 w-5 text-primary" />
-              ) : (
-                <WalletIcon className="h-5 w-5 text-blue-500" />
-              )}
-              Reclassificar Transação
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>Deseja mover esta transação?</p>
+            <AlertDialogTitle>Reclassificar Transação</AlertDialogTitle>
+            <AlertDialogDescription>
               {reclassifyDialog && (
-                <div className="bg-muted p-3 rounded-lg space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Transação:</span>
-                    <span className="font-medium text-foreground">{reclassifyDialog.transaction.description}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">
-                      Nova {reclassifyDialog.targetType === "category" ? "categoria" : "conta"}:
-                    </span>
-                    <span className="font-bold text-primary">{reclassifyDialog.targetName}</span>
-                  </div>
-                </div>
+                <>
+                  Deseja mover "{reclassifyDialog.transaction.description}" para{" "}
+                  {reclassifyDialog.targetType === "category" ? "a categoria" : "a conta"} "
+                  {reclassifyDialog.targetName}"?
+                </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

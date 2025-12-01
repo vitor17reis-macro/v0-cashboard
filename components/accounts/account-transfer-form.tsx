@@ -70,14 +70,19 @@ export function AccountTransferForm({ onSuccess }: AccountTransferFormProps) {
         })
       }
 
+      const transferDescription = description || `Transferência: ${fromAccount?.name} → ${toAccount?.name}`
+
       // Create transfer transaction for tracking
+      // Store toAccountId in description metadata for reversal
       await addTransaction({
         date: new Date().toISOString(),
-        description: description || `Transferência: ${fromAccount?.name} → ${toAccount?.name}`,
+        description: transferDescription,
         amount: transferAmount,
         type: "transfer",
         category: "transfer",
         accountId: fromAccountId,
+        // Store destination account ID for reversal purposes
+        goalId: undefined,
       })
 
       onSuccess?.()

@@ -339,8 +339,25 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // First, update account balance (reverse the effect)
-      if (transaction.accountId) {
+      if (transaction.type === "transfer" && transaction.description) {
+        // Parse transfer details from description
+        // Format: "Transferência: [Source Account] → [Destination Account]"
+        const transferMatch = transaction.description.match(/Transferência: (.+) → (.+)/)
+        if (transferMatch) {
+          const sourceAccountName = transferMatch[1]
+          const destAccountName = transferMatch[2]
+
+          const sourceAccount = accounts.find((a) => a.name === sourceAccountName)
+          const destAccount = accounts.find((a) => a.name === destAccountName)
+
+          if (sourceAccount && destAccount) {
+            // Reverse: add back to source, remove from destination
+            await updateAccount(sourceAccount.id, { balance: sourceAccount.balance + transaction.amount })
+            await updateAccount(destAccount.id, { balance: destAccount.balance - transaction.amount })
+          }
+        }
+      } else if (transaction.accountId) {
+        // Regular transaction reversal
         const account = accounts.find((a) => a.id === transaction.accountId)
         if (account) {
           let newBalance = account.balance
@@ -359,7 +376,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
 
       // If this was a goal deposit (savings with goalId), update the goal
-      if (transaction.goalId && transaction.type === "savings") {
+      if (transaction.goalId && (transaction.type === "savings" || transaction.type === "transfer")) {
         const goal = goals.find((g) => g.id === transaction.goalId)
         if (goal) {
           const newCurrentAmount = Math.max(0, goal.currentAmount - transaction.amount)
@@ -572,7 +589,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setCategories((prev) => [...prev, newCategory])
     } catch (error) {
       console.error("[v0] Failed to add category:", error)
-      throw error
     }
   }
 
