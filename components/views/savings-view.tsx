@@ -33,6 +33,7 @@ import {
   Gift,
   ArrowUpRight,
   Calendar,
+  Loader2,
 } from "lucide-react"
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from "recharts"
 
@@ -54,8 +55,15 @@ const ENTRY_TYPES = [
 ]
 
 export function SavingsView() {
-  const { accounts, goals, savingsEntries, addSavingsEntry, deleteSavingsEntry } = useFinance()
+  const financeContext = useFinance()
   const { formatAmount } = useCurrency()
+
+  const accounts = financeContext?.accounts || []
+  const goals = financeContext?.goals || []
+  const savingsEntries = financeContext?.savingsEntries || []
+  const addSavingsEntry = financeContext?.addSavingsEntry
+  const deleteSavingsEntry = financeContext?.deleteSavingsEntry
+  const isLoading = financeContext?.isLoading ?? true
 
   const [isOpen, setIsOpen] = useState(false)
   const [entryType, setEntryType] = useState<string>("deposit")
@@ -89,7 +97,6 @@ export function SavingsView() {
     (acc, entry) => {
       const month = new Date(entry.date).toLocaleDateString("pt-PT", { month: "short", year: "2-digit" })
       const existing = acc.find((a) => a.month === month)
-      const value = ["deposit", "interest"].includes(entry.type) ? entry.amount : -entry.amount
       if (existing) {
         existing.depositos += entry.type === "deposit" ? entry.amount : 0
         existing.juros += entry.type === "interest" ? entry.amount : 0
@@ -107,19 +114,18 @@ export function SavingsView() {
     [] as { month: string; depositos: number; juros: number; levantamentos: number }[],
   )
 
-  // Calculate monthly rate if we have interest entries
   const totalInterest = savingsEntries.filter((e) => e.type === "interest").reduce((sum, e) => sum + e.amount, 0)
   const totalDeposits = savingsEntries.filter((e) => e.type === "deposit").reduce((sum, e) => sum + e.amount, 0)
   const interestRate = totalDeposits > 0 ? ((totalInterest / totalDeposits) * 100).toFixed(2) : "0"
 
   const handleSave = () => {
-    if (!purpose || !amount || !savingsAccount) return
+    if (!purpose || !amount || !savingsAccount || !addSavingsEntry) return
 
     addSavingsEntry({
       accountId: savingsAccount.id,
       date: new Date().toISOString().split("T")[0],
       amount: Number.parseFloat(amount),
-      type: entryType as any,
+      type: entryType as "deposit" | "withdrawal" | "interest",
       purpose,
       notes,
     })
@@ -134,6 +140,14 @@ export function SavingsView() {
     const config = SAVINGS_PURPOSES.find((p) => p.value === purposeName)
     const Icon = config?.icon || Target
     return <Icon className="h-4 w-4" style={{ color: config?.color }} />
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
+      </div>
+    )
   }
 
   return (
@@ -281,7 +295,6 @@ export function SavingsView() {
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Savings by Purpose */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -321,7 +334,6 @@ export function SavingsView() {
           </CardContent>
         </Card>
 
-        {/* Monthly Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -430,14 +442,16 @@ export function SavingsView() {
                       {["deposit", "interest"].includes(entry.type) ? "+" : "-"}
                       {formatAmount(entry.amount)}
                     </p>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => deleteSavingsEntry(entry.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
+                    {deleteSavingsEntry && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => deleteSavingsEntry(entry.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

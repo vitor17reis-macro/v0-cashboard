@@ -30,6 +30,7 @@ import {
   ChevronDown,
   History,
   Undo2,
+  Loader2,
 } from "lucide-react"
 import type { AutoRule } from "@/lib/types"
 import { useCurrency } from "@/contexts/currency-context"
@@ -45,6 +46,7 @@ export function AutomaticRules() {
   const addRule = financeContext?.addRule
   const updateRule = financeContext?.updateRule
   const deleteRule = financeContext?.deleteRule
+  const isLoading = financeContext?.isLoading ?? true
 
   const [isOpen, setIsOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
@@ -176,9 +178,16 @@ export function AutomaticRules() {
     }
   }
 
-  // Calculate total amount transferred by a rule
   const getTotalTransferred = (rule: AutoRule) => {
     return (rule.executions || []).filter((exec) => !exec.reversed).reduce((sum, exec) => sum + exec.amount, 0)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+      </div>
+    )
   }
 
   return (
@@ -468,7 +477,6 @@ export function AutomaticRules() {
                         <span className="font-medium">{getActionLabel(rule.action)}</span>
                       </div>
 
-                      {/* Execution History Toggle */}
                       {rule.executions && rule.executions.length > 0 && (
                         <CollapsibleTrigger asChild>
                           <Button variant="ghost" size="sm" className="mt-3 gap-2 text-muted-foreground">
@@ -501,55 +509,50 @@ export function AutomaticRules() {
                     </div>
                   </div>
 
-                  {/* Execution History */}
                   <CollapsibleContent>
                     {rule.executions && rule.executions.length > 0 && (
-                      <div className="mt-4 border-t pt-4">
-                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                          <History className="h-4 w-4" />
-                          Histórico de Execuções
-                        </h4>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {rule.executions
-                            .slice()
-                            .reverse()
-                            .map((exec) => (
-                              <div
-                                key={exec.id}
-                                className={`flex items-center justify-between p-3 rounded-lg text-sm ${
-                                  exec.reversed
-                                    ? "bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800"
-                                    : "bg-muted/50"
-                                }`}
-                              >
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    {exec.reversed && (
-                                      <Badge variant="destructive" className="text-xs">
-                                        <Undo2 className="h-3 w-3 mr-1" />
-                                        Revertida
-                                      </Badge>
-                                    )}
-                                    <span className="text-muted-foreground">
-                                      {new Date(exec.date).toLocaleDateString("pt-PT", {
-                                        day: "2-digit",
-                                        month: "short",
-                                        year: "numeric",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </span>
-                                  </div>
-                                  <p className="text-foreground mt-1">Origem: {exec.triggeredBy}</p>
-                                </div>
-                                <div
-                                  className={`font-semibold ${exec.reversed ? "text-red-500 line-through" : "text-emerald-600"}`}
-                                >
-                                  {formatAmount(exec.amount)}
-                                </div>
+                      <div className="mt-4 pt-4 border-t space-y-2">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-3">Histórico de Execuções</h4>
+                        {rule.executions.slice(0, 10).map((exec) => (
+                          <div
+                            key={exec.id}
+                            className={`flex items-center justify-between p-3 rounded-lg text-sm ${
+                              exec.reversed
+                                ? "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                                : "bg-muted/50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              {exec.reversed ? (
+                                <Undo2 className="h-4 w-4 text-red-500" />
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              )}
+                              <div>
+                                <p className={exec.reversed ? "line-through text-muted-foreground" : ""}>
+                                  {exec.triggeredBy}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(exec.executedAt).toLocaleDateString("pt-PT", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </p>
                               </div>
-                            ))}
-                        </div>
+                            </div>
+                            <div className="text-right">
+                              <p
+                                className={`font-medium ${exec.reversed ? "line-through text-muted-foreground" : "text-emerald-600"}`}
+                              >
+                                {formatAmount(exec.amount)}
+                              </p>
+                              {exec.reversed && <p className="text-xs text-red-500">Revertida</p>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </CollapsibleContent>
