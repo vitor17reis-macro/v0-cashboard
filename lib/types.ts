@@ -10,6 +10,7 @@ export interface Transaction {
   accountId?: string
   toAccountId?: string
   goalId?: string
+  ruleId?: string // Track which rule generated this transaction
   isRecurring?: boolean
   recurringFrequency?: "monthly" | "weekly" | "yearly"
   nextDueDate?: string
@@ -95,6 +96,16 @@ export const DEFAULT_ACCOUNTS = [
   { name: "Dinheiro", type: "cash" as const, balance: 0, color: "#F59E0B", icon: "banknote" },
 ]
 
+export interface RuleExecution {
+  id: string
+  ruleId: string
+  transactionId: string
+  triggeredBy: string // Description of what triggered it
+  amount: number
+  date: string
+  reversed?: boolean
+}
+
 export interface AutoRule {
   id: string
   name: string
@@ -114,4 +125,28 @@ export interface AutoRule {
   }
   lastExecuted?: string
   executionCount: number
+  executions?: RuleExecution[] // History of executions
+}
+
+export interface InvestmentEntry {
+  id: string
+  accountId: string
+  date: string
+  amount: number
+  type: "deposit" | "withdrawal" | "dividend" | "gain" | "loss"
+  asset: string // Name of the asset (e.g., "AAPL", "Bitcoin", "ETF IWDA")
+  assetType: "stocks" | "crypto" | "etf" | "bonds" | "real-estate" | "funds" | "other"
+  quantity?: number
+  pricePerUnit?: number
+  notes?: string
+}
+
+export interface SavingsEntry {
+  id: string
+  accountId: string
+  date: string
+  amount: number
+  type: "deposit" | "withdrawal" | "interest"
+  purpose: string // What the savings is for
+  notes?: string
 }

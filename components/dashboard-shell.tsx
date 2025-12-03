@@ -21,6 +21,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  PiggyBank,
+  LineChart,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -58,6 +60,8 @@ const NAV_ITEMS = [
   { href: "/", icon: LayoutDashboardIcon, label: "Visão Geral" },
   { href: "/historico", icon: HistoryIcon, label: "Histórico" },
   { href: "/comparacao", icon: GitCompareArrows, label: "Comparação" },
+  { href: "/poupanca", icon: PiggyBank, label: "Poupança" },
+  { href: "/investimentos", icon: LineChart, label: "Investimentos" },
   { href: "/relatorios", icon: PieChartIcon, label: "Relatórios" },
   { href: "/previsao", icon: TrendingUpIcon, label: "Previsão" },
   { href: "/assinaturas", icon: CalendarClockIcon, label: "Assinaturas" },
