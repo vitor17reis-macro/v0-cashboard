@@ -13,6 +13,8 @@ export interface Transaction {
   isRecurring?: boolean
   recurringFrequency?: "monthly" | "weekly" | "yearly"
   nextDueDate?: string
+  ruleId?: string
+  sourceAccountId?: string
 }
 
 export interface Account {
@@ -95,6 +97,20 @@ export const DEFAULT_ACCOUNTS = [
   { name: "Dinheiro", type: "cash" as const, balance: 0, color: "#F59E0B", icon: "banknote" },
 ]
 
+export interface RuleExecution {
+  id: string
+  ruleId: string
+  date: string
+  triggerTransactionId: string
+  triggerDescription: string
+  amount: number
+  sourceAccountId: string
+  targetAccountId?: string
+  targetGoalId?: string
+  status: "executed" | "reversed"
+  reversedAt?: string
+}
+
 export interface AutoRule {
   id: string
   name: string
@@ -114,4 +130,5 @@ export interface AutoRule {
   }
   lastExecuted?: string
   executionCount: number
+  executions?: RuleExecution[]
 }

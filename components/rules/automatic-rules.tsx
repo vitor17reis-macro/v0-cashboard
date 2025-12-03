@@ -17,12 +17,30 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFinance } from "@/components/providers/finance-provider"
-import { Plus, Zap, Pencil, Trash2, ArrowRight, Sparkles, CheckCircle2, Clock } from "lucide-react"
-import type { AutoRule } from "@/lib/types"
+import { useCurrency } from "@/components/providers/currency-provider"
+import {
+  Plus,
+  Zap,
+  Pencil,
+  Trash2,
+  ArrowRight,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  ChevronDown,
+  History,
+  RotateCcw,
+  ArrowDownRight,
+  TrendingUp,
+} from "lucide-react"
+import type { AutoRule, RuleExecution } from "@/lib/types"
 
 export function AutomaticRules() {
   const financeContext = useFinance()
+  const { formatCurrency } = useCurrency()
 
   const accounts = financeContext?.accounts || []
   const goals = financeContext?.goals || []
@@ -34,6 +52,7 @@ export function AutomaticRules() {
 
   const [isOpen, setIsOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
+  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set())
 
   // Form state
   const [name, setName] = useState("")
@@ -45,6 +64,16 @@ export function AutomaticRules() {
   const [fixedAmount, setFixedAmount] = useState("")
   const [targetAccountId, setTargetAccountId] = useState("")
   const [targetGoalId, setTargetGoalId] = useState("")
+
+  const toggleRuleExpanded = (ruleId: string) => {
+    const newExpanded = new Set(expandedRules)
+    if (newExpanded.has(ruleId)) {
+      newExpanded.delete(ruleId)
+    } else {
+      newExpanded.add(ruleId)
+    }
+    setExpandedRules(newExpanded)
+  }
 
   const resetForm = () => {
     setName("")
@@ -152,14 +181,36 @@ export function AutomaticRules() {
     }
   }
 
+  const getTargetName = (execution: RuleExecution) => {
+    if (execution.targetAccountId) {
+      return accounts.find((a) => a.id === execution.targetAccountId)?.name || "Conta"
+    }
+    if (execution.targetGoalId) {
+      return goals.find((g) => g.id === execution.targetGoalId)?.name || "Meta"
+    }
+    return "Desconhecido"
+  }
+
+  const getSourceName = (execution: RuleExecution) => {
+    return accounts.find((a) => a.id === execution.sourceAccountId)?.name || "Conta"
+  }
+
+  // Calculate stats
+  const totalExecutions = rules.reduce((sum, r) => sum + (r.executionCount || 0), 0)
+  const totalAutomated = rules.reduce((sum, r) => {
+    const executions = r.executions || []
+    return sum + executions.filter((e) => e.status === "executed").reduce((s, e) => s + e.amount, 0)
+  }, 0)
+  const activeRulesCount = rules.filter((r) => r.enabled).length
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Automações</h1>
           <p className="text-muted-foreground mt-1">
-            Crie regras para automatizar transferências e categorizações. As regras são executadas automaticamente
-            quando uma transação correspondente é registada.
+            Crie regras para automatizar transferências. As regras executam automaticamente quando uma transação
+            correspondente é registada.
           </p>
         </div>
         <Dialog
@@ -184,7 +235,7 @@ export function AutomaticRules() {
               <DialogDescription>
                 {editingRule
                   ? "Modifique as configurações da regra de automação."
-                  : "Configure uma regra que será executada automaticamente quando uma transação correspondente for registada."}
+                  : "Configure uma regra que será executada automaticamente."}
               </DialogDescription>
             </DialogHeader>
 
@@ -350,6 +401,53 @@ export function AutomaticRules() {
         </Dialog>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200 dark:border-amber-800">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/20">
+                <Zap className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm text-amber-700 dark:text-amber-300">Regras Ativas</p>
+                <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">{activeRulesCount}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-200 dark:border-emerald-800">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/20">
+                <TrendingUp className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm text-emerald-700 dark:text-emerald-300">Total Automatizado</p>
+                <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
+                  {formatCurrency(totalAutomated)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/20">
+                <History className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-blue-700 dark:text-blue-300">Execuções Totais</p>
+                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{totalExecutions}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Info Card */}
       <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 dark:border-amber-800">
         <CardContent className="p-4">
@@ -360,8 +458,8 @@ export function AutomaticRules() {
               <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
                 Quando regista uma transação que corresponde a uma regra ativa, a automação é executada automaticamente.
                 Por exemplo: se criar uma regra "Quando receber Salário, transferir 10% para Poupança", ao registar uma
-                receita com "Salário" na descrição ou categoria, 10% será automaticamente transferido para a conta de
-                poupança.
+                receita com "Salário" na descrição ou categoria, 10% será automaticamente transferido. Se reverter a
+                transação no histórico, o valor volta à conta de origem.
               </p>
             </div>
           </div>
@@ -369,7 +467,7 @@ export function AutomaticRules() {
       </Card>
 
       {/* Rules List */}
-      <div className="grid gap-4">
+      <div className="space-y-4">
         {rules.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="py-12 text-center">
@@ -384,78 +482,177 @@ export function AutomaticRules() {
           </Card>
         ) : (
           rules.map((rule) => (
-            <Card
+            <Collapsible
               key={rule.id}
-              className={`transition-all duration-300 ${
-                rule.enabled ? "border-amber-200 dark:border-amber-800 shadow-md" : "opacity-60 border-muted"
-              }`}
+              open={expandedRules.has(rule.id)}
+              onOpenChange={() => toggleRuleExpanded(rule.id)}
             >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div
-                        className={`p-2 rounded-lg ${
-                          rule.enabled ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-muted"
-                        }`}
-                      >
-                        <Zap className={`h-4 w-4 ${rule.enabled ? "text-white" : "text-muted-foreground"}`} />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">{rule.name}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          {rule.enabled ? (
-                            <Badge
-                              variant="secondary"
-                              className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                            >
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Ativa
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-muted text-muted-foreground">
-                              Inativa
-                            </Badge>
-                          )}
-                          {rule.executionCount && rule.executionCount > 0 && (
-                            <Badge variant="outline" className="text-xs">
-                              {rule.executionCount}x executada
-                            </Badge>
-                          )}
-                          {rule.lastExecuted && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {new Date(rule.lastExecuted).toLocaleDateString("pt-PT")}
-                            </span>
-                          )}
+              <Card
+                className={`transition-all duration-300 ${
+                  rule.enabled ? "border-amber-200 dark:border-amber-800 shadow-md" : "opacity-60 border-muted"
+                }`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div
+                          className={`p-2 rounded-lg ${
+                            rule.enabled ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-muted"
+                          }`}
+                        >
+                          <Zap className={`h-4 w-4 ${rule.enabled ? "text-white" : "text-muted-foreground"}`} />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{rule.name}</h3>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {rule.enabled ? (
+                              <Badge
+                                variant="secondary"
+                                className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                              >
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Ativa
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                                Inativa
+                              </Badge>
+                            )}
+                            {rule.executionCount && rule.executionCount > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                {rule.executionCount}x executada
+                              </Badge>
+                            )}
+                            {rule.lastExecuted && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Date(rule.lastExecuted).toLocaleDateString("pt-PT")}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mt-3">
+                        <span className="font-medium">{getTriggerLabel(rule.trigger)}</span>
+                        <ArrowRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                        <span className="font-medium">{getActionLabel(rule.action)}</span>
+                      </div>
+
+                      {/* Expand button for history */}
+                      {rule.executions && rule.executions.length > 0 && (
+                        <CollapsibleTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mt-3 gap-2 text-muted-foreground hover:text-foreground"
+                          >
+                            <History className="h-4 w-4" />
+                            Ver Histórico ({rule.executions.length})
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${expandedRules.has(rule.id) ? "rotate-180" : ""}`}
+                            />
+                          </Button>
+                        </CollapsibleTrigger>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mt-3">
-                      <span className="font-medium">{getTriggerLabel(rule.trigger)}</span>
-                      <ArrowRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                      <span className="font-medium">{getActionLabel(rule.action)}</span>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={rule.enabled}
+                        onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
+                      />
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)} className="h-8 w-8">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteRule(rule.id)}
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Switch checked={rule.enabled} onCheckedChange={(checked) => handleToggleRule(rule.id, checked)} />
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)} className="h-8 w-8">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteRule(rule.id)}
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  {/* Execution History */}
+                  <CollapsibleContent>
+                    {rule.executions && rule.executions.length > 0 && (
+                      <div className="mt-4 border-t pt-4">
+                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                          <History className="h-4 w-4" />
+                          Histórico de Execuções
+                        </h4>
+                        <ScrollArea className="h-[200px]">
+                          <div className="space-y-2">
+                            {rule.executions
+                              .slice()
+                              .reverse()
+                              .map((execution) => (
+                                <div
+                                  key={execution.id}
+                                  className={`p-3 rounded-lg border text-sm ${
+                                    execution.status === "reversed"
+                                      ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
+                                      : "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      {execution.status === "reversed" ? (
+                                        <RotateCcw className="h-4 w-4 text-red-500" />
+                                      ) : (
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                      )}
+                                      <span
+                                        className={`font-medium ${execution.status === "reversed" ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}
+                                      >
+                                        {formatCurrency(execution.amount)}
+                                      </span>
+                                      {execution.status === "reversed" && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-xs bg-red-100 text-red-700 border-red-300"
+                                        >
+                                          Revertida
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <span className="text-xs text-muted-foreground">
+                                      {new Date(execution.date).toLocaleDateString("pt-PT", {
+                                        day: "2-digit",
+                                        month: "short",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <ArrowDownRight className="h-3 w-3" />
+                                    <span>{getSourceName(execution)}</span>
+                                    <ArrowRight className="h-3 w-3" />
+                                    <span>{getTargetName(execution)}</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                                    Trigger: {execution.triggerDescription}
+                                  </p>
+                                  {execution.status === "reversed" && execution.reversedAt && (
+                                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                                      Revertida em {new Date(execution.reversedAt).toLocaleDateString("pt-PT")}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </CardContent>
+              </Card>
+            </Collapsible>
           ))
         )}
       </div>
