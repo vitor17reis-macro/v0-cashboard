@@ -55,12 +55,11 @@ const ENTRY_TYPES = [
 ]
 
 export function SavingsView() {
-  const financeContext = useFinance()
   const { formatAmount } = useCurrency()
-
-  const accounts = financeContext?.accounts || []
-  const goals = financeContext?.goals || []
-  const savingsEntries = financeContext?.savingsEntries || []
+  const financeContext = useFinance()
+  const accounts = financeContext?.accounts ?? []
+  const goals = financeContext?.goals ?? []
+  const savingsEntries = financeContext?.savingsEntries ?? []
   const addSavingsEntry = financeContext?.addSavingsEntry
   const deleteSavingsEntry = financeContext?.deleteSavingsEntry
   const isLoading = financeContext?.isLoading ?? true
@@ -72,7 +71,7 @@ export function SavingsView() {
   const [notes, setNotes] = useState("")
 
   const savingsAccount = accounts.find((a) => a.type === "savings")
-  const totalSavings = savingsAccount?.balance || 0
+  const totalSavings = savingsAccount?.balance ?? 0
 
   // Calculate savings by purpose
   const savingsByPurpose = SAVINGS_PURPOSES.map((p) => {
@@ -98,31 +97,31 @@ export function SavingsView() {
       const month = new Date(entry.date).toLocaleDateString("pt-PT", { month: "short", year: "2-digit" })
       const existing = acc.find((a) => a.month === month)
       if (existing) {
-        existing.depositos += entry.type === "deposit" ? entry.amount : 0
-        existing.juros += entry.type === "interest" ? entry.amount : 0
-        existing.levantamentos += entry.type === "withdrawal" ? entry.amount : 0
+        if (entry.type === "deposit" || entry.type === "interest") {
+          existing.deposits += entry.amount
+        } else {
+          existing.withdrawals += entry.amount
+        }
       } else {
         acc.push({
           month,
-          depositos: entry.type === "deposit" ? entry.amount : 0,
-          juros: entry.type === "interest" ? entry.amount : 0,
-          levantamentos: entry.type === "withdrawal" ? entry.amount : 0,
+          deposits: entry.type === "deposit" || entry.type === "interest" ? entry.amount : 0,
+          withdrawals: entry.type === "withdrawal" ? entry.amount : 0,
         })
       }
       return acc
     },
-    [] as { month: string; depositos: number; juros: number; levantamentos: number }[],
+    [] as { month: string; deposits: number; withdrawals: number }[],
   )
 
-  const totalInterest = savingsEntries.filter((e) => e.type === "interest").reduce((sum, e) => sum + e.amount, 0)
-  const totalDeposits = savingsEntries.filter((e) => e.type === "deposit").reduce((sum, e) => sum + e.amount, 0)
-  const interestRate = totalDeposits > 0 ? ((totalInterest / totalDeposits) * 100).toFixed(2) : "0"
+  const handleAddEntry = () => {
+    if (!addSavingsEntry || !purpose || !amount) return
 
-  const handleSave = () => {
-    if (!purpose || !amount || !savingsAccount || !addSavingsEntry) return
+    const savingsAcct = accounts.find((a) => a.type === "savings")
+    if (!savingsAcct) return
 
     addSavingsEntry({
-      accountId: savingsAccount.id,
+      accountId: savingsAcct.id,
       date: new Date().toISOString().split("T")[0],
       amount: Number.parseFloat(amount),
       type: entryType as "deposit" | "withdrawal" | "interest",
@@ -134,28 +133,30 @@ export function SavingsView() {
     setPurpose("")
     setAmount("")
     setNotes("")
+    setEntryType("deposit")
   }
 
-  const getPurposeIcon = (purposeName: string) => {
-    const config = SAVINGS_PURPOSES.find((p) => p.value === purposeName)
-    const Icon = config?.icon || Target
-    return <Icon className="h-4 w-4" style={{ color: config?.color }} />
-  }
-
-  if (isLoading) {
+  if (!financeContext || isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">A carregar poupança...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Poupança</h1>
-          <p className="text-muted-foreground mt-1">Organize e acompanhe as suas poupanças por objetivo.</p>
+          <h2 className="text-2xl font-serif font-bold flex items-center gap-2">
+            <PiggyBank className="h-7 w-7 text-cyan-500" />
+            Poupança
+          </h2>
+          <p className="text-muted-foreground">Acompanhe e organize as suas poupanças por objetivo.</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
@@ -164,70 +165,74 @@ export function SavingsView() {
               Registar Movimento
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <PiggyBank className="h-5 w-5 text-cyan-500" />
-                Registar Movimento de Poupança
+                <Sparkles className="h-5 w-5 text-cyan-500" />
+                Novo Movimento de Poupança
               </DialogTitle>
-              <DialogDescription>Registe depósitos, levantamentos ou juros da sua poupança.</DialogDescription>
+              <DialogDescription>Registe um depósito, levantamento ou juros na sua conta poupança.</DialogDescription>
             </DialogHeader>
-
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tipo de Movimento</Label>
-                  <Select value={entryType} onValueChange={setEntryType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ENTRY_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <span className={type.color}>{type.label}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Objetivo</Label>
-                  <Select value={purpose} onValueChange={setPurpose}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SAVINGS_PURPOSES.map((p) => (
-                        <SelectItem key={p.value} value={p.value}>
-                          {p.value}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label>Valor (€)</Label>
-                <Input type="number" placeholder="500" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                <Label>Tipo de Movimento</Label>
+                <Select value={entryType} onValueChange={setEntryType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ENTRY_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        <span className={t.color}>{t.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-
+              <div className="space-y-2">
+                <Label>Objetivo</Label>
+                <Select value={purpose} onValueChange={setPurpose}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o objetivo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SAVINGS_PURPOSES.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color }} />
+                          {p.value}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Montante (€)</Label>
+                <Input
+                  type="number"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
               <div className="space-y-2">
                 <Label>Notas (opcional)</Label>
-                <Input placeholder="Ex: Poupança mensal" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <Input placeholder="Adicione notas..." value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
             </div>
-
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsOpen(false)}>
                 Cancelar
               </Button>
               <Button
-                onClick={handleSave}
+                onClick={handleAddEntry}
                 disabled={!purpose || !amount}
-                className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
+                className="bg-gradient-to-r from-cyan-500 to-blue-500"
               >
-                Guardar
+                Registar
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -235,70 +240,56 @@ export function SavingsView() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-white/20">
-                <PiggyBank className="h-6 w-6" />
-              </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-cyan-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-cyan-100 text-sm">Total Poupado</p>
-                <p className="text-3xl font-bold">{formatAmount(totalSavings)}</p>
+                <p className="text-sm text-muted-foreground">Total Poupado</p>
+                <p className="text-3xl font-bold text-cyan-600">{formatAmount(totalSavings)}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                <PiggyBank className="h-6 w-6 text-cyan-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-white/20">
-                <ArrowUpRight className="h-6 w-6" />
-              </div>
+        <Card className="bg-gradient-to-br from-emerald-500/10 to-green-500/10 border-emerald-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-100 text-sm">Total Depositado</p>
-                <p className="text-3xl font-bold">{formatAmount(totalDeposits)}</p>
+                <p className="text-sm text-muted-foreground">Objetivos Ativos</p>
+                <p className="text-3xl font-bold text-emerald-600">{savingsByPurpose.length}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <Target className="h-6 w-6 text-emerald-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-amber-500 to-orange-600 text-white border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-white/20">
-                <Sparkles className="h-6 w-6" />
-              </div>
+        <Card className="bg-gradient-to-br from-violet-500/10 to-purple-500/10 border-violet-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-amber-100 text-sm">Juros Recebidos</p>
-                <p className="text-3xl font-bold">{formatAmount(totalInterest)}</p>
+                <p className="text-sm text-muted-foreground">Movimentos</p>
+                <p className="text-3xl font-bold text-violet-600">{savingsEntries.length}</p>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-violet-500 to-purple-600 text-white border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-white/20">
-                <TrendingUp className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-violet-100 text-sm">Rendimento</p>
-                <p className="text-3xl font-bold">{interestRate}%</p>
+              <div className="h-12 w-12 rounded-full bg-violet-500/20 flex items-center justify-center">
+                <ArrowUpRight className="h-6 w-6 text-violet-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts */}
+      {/* Savings by Purpose */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-cyan-500" />
+              <Target className="h-5 w-5" />
               Poupança por Objetivo
             </CardTitle>
           </CardHeader>
@@ -306,159 +297,127 @@ export function SavingsView() {
             {savingsByPurpose.length > 0 ? (
               <div className="space-y-4">
                 {savingsByPurpose.map((item) => {
+                  const Icon = SAVINGS_PURPOSES.find((p) => p.value === item.name)?.icon || Target
                   const percentage = totalSavings > 0 ? (item.value / totalSavings) * 100 : 0
                   return (
                     <div key={item.name} className="space-y-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          {getPurposeIcon(item.name)}
+                          <div
+                            className="h-8 w-8 rounded-lg flex items-center justify-center"
+                            style={{ backgroundColor: `${item.color}20` }}
+                          >
+                            <Icon className="h-4 w-4" style={{ color: item.color }} />
+                          </div>
                           <span className="font-medium">{item.name}</span>
                         </div>
                         <span className="font-semibold">{formatAmount(item.value)}</span>
                       </div>
-                      <div className="relative">
-                        <Progress value={percentage} className="h-3" />
-                        <span className="absolute right-0 top-4 text-xs text-muted-foreground">
-                          {percentage.toFixed(1)}%
-                        </span>
-                      </div>
+                      <Progress value={percentage} className="h-2" />
                     </div>
                   )
                 })}
               </div>
             ) : (
-              <div className="h-48 flex items-center justify-center text-muted-foreground">
-                Sem dados de poupança por objetivo
+              <div className="text-center py-8 text-muted-foreground">
+                <PiggyBank className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>Sem poupanças registadas</p>
+                <p className="text-sm">Comece a poupar para os seus objetivos!</p>
               </div>
             )}
           </CardContent>
         </Card>
 
+        {/* Monthly Evolution Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-cyan-500" />
+              <Calendar className="h-5 w-5" />
               Evolução Mensal
             </CardTitle>
           </CardHeader>
           <CardContent>
             {monthlyData.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip
-                      formatter={(value: number) => formatAmount(value)}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Bar dataKey="depositos" name="Depósitos" fill="#10B981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="juros" name="Juros" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="levantamentos" name="Levantamentos" fill="#EF4444" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={monthlyData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="month" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip
+                    formatter={(value: number) => formatAmount(value)}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Bar dataKey="deposits" fill="#10B981" name="Depósitos" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="withdrawals" fill="#EF4444" name="Levantamentos" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Sem histórico de poupança
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                <p>Sem dados para mostrar</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Goals Progress */}
-      {goals.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-cyan-500" />
-              Progresso das Metas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {goals.map((goal) => {
-                const percentage = (goal.currentAmount / goal.targetAmount) * 100
+      {/* Recent Entries */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Últimos Movimentos</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {savingsEntries.length > 0 ? (
+            <div className="space-y-3">
+              {savingsEntries.slice(0, 10).map((entry) => {
+                const purposeInfo = SAVINGS_PURPOSES.find((p) => p.value === entry.purpose)
+                const Icon = purposeInfo?.icon || Target
+                const typeInfo = ENTRY_TYPES.find((t) => t.value === entry.type)
                 return (
-                  <div key={goal.id} className="p-4 rounded-xl border bg-gradient-to-br from-background to-muted/30">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: goal.color }} />
-                      <h4 className="font-semibold">{goal.name}</h4>
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-10 w-10 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: `${purposeInfo?.color || "#64748B"}20` }}
+                      >
+                        <Icon className="h-5 w-5" style={{ color: purposeInfo?.color || "#64748B" }} />
+                      </div>
+                      <div>
+                        <p className="font-medium">{entry.purpose}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {typeInfo?.label} • {new Date(entry.date).toLocaleDateString("pt-PT")}
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Progresso</span>
-                        <span className="font-medium">{percentage.toFixed(0)}%</span>
-                      </div>
-                      <Progress value={Math.min(percentage, 100)} className="h-2" />
-                      <div className="flex justify-between text-sm">
-                        <span className="text-emerald-600 font-medium">{formatAmount(goal.currentAmount)}</span>
-                        <span className="text-muted-foreground">de {formatAmount(goal.targetAmount)}</span>
-                      </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`font-semibold ${typeInfo?.color}`}>
+                        {entry.type === "withdrawal" ? "-" : "+"}
+                        {formatAmount(entry.amount)}
+                      </span>
+                      {deleteSavingsEntry && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteSavingsEntry(entry.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )
               })}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent Movements */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Movimentos Recentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {savingsEntries.length > 0 ? (
-            <div className="space-y-2">
-              {savingsEntries.slice(0, 10).map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    {getPurposeIcon(entry.purpose)}
-                    <div>
-                      <p className="font-medium">{entry.purpose}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(entry.date).toLocaleDateString("pt-PT")} •{" "}
-                        {ENTRY_TYPES.find((t) => t.value === entry.type)?.label}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <p
-                      className={`font-semibold ${
-                        ["deposit", "interest"].includes(entry.type) ? "text-emerald-600" : "text-red-600"
-                      }`}
-                    >
-                      {["deposit", "interest"].includes(entry.type) ? "+" : "-"}
-                      {formatAmount(entry.amount)}
-                    </p>
-                    {deleteSavingsEntry && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => deleteSavingsEntry(entry.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              Ainda não registou nenhum movimento de poupança.
+              <p>Sem movimentos registados</p>
             </div>
           )}
         </CardContent>

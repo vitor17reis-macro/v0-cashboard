@@ -29,7 +29,6 @@ import {
   Trash2,
   Wallet,
   ArrowUpRight,
-  ArrowDownRight,
   Loader2,
 } from "lucide-react"
 import {
@@ -67,8 +66,8 @@ export function InvestmentsView() {
   const financeContext = useFinance()
   const { formatAmount } = useCurrency()
 
-  const accounts = financeContext?.accounts || []
-  const investmentEntries = financeContext?.investmentEntries || []
+  const accounts = financeContext?.accounts ?? []
+  const investmentEntries = financeContext?.investmentEntries ?? []
   const addInvestmentEntry = financeContext?.addInvestmentEntry
   const deleteInvestmentEntry = financeContext?.deleteInvestmentEntry
   const isLoading = financeContext?.isLoading ?? true
@@ -83,7 +82,7 @@ export function InvestmentsView() {
   const [notes, setNotes] = useState("")
 
   const investmentAccount = accounts.find((a) => a.type === "investment")
-  const totalInvested = investmentAccount?.balance || 0
+  const totalInvested = investmentAccount?.balance ?? 0
 
   // Calculate portfolio by asset type
   const portfolioByType = ASSET_TYPES.map((type) => {
@@ -99,58 +98,42 @@ export function InvestmentsView() {
       name: type.label,
       value: Math.max(0, total),
       color: type.color,
+      icon: type.icon,
     }
-  }).filter((t) => t.value > 0)
+  }).filter((p) => p.value > 0)
 
-  // Calculate portfolio by asset
-  const portfolioByAsset = investmentEntries.reduce(
-    (acc, entry) => {
-      const existing = acc.find((a) => a.asset === entry.asset)
-      const entryValue = ["deposit", "dividend", "gain"].includes(entry.type) ? entry.amount : -entry.amount
-      if (existing) {
-        existing.value += entryValue
-        existing.quantity = (existing.quantity || 0) + (entry.quantity || 0)
-      } else {
-        acc.push({
-          asset: entry.asset,
-          assetType: entry.assetType,
-          value: entryValue,
-          quantity: entry.quantity || 0,
-        })
-      }
-      return acc
-    },
-    [] as { asset: string; assetType: string; value: number; quantity: number }[],
-  )
+  // Evolution data
+  const evolutionData = investmentEntries
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .reduce(
+      (acc, entry) => {
+        const date = new Date(entry.date).toLocaleDateString("pt-PT", { month: "short", year: "2-digit" })
+        const lastValue = acc.length > 0 ? acc[acc.length - 1].value : 0
+        let newValue = lastValue
+        if (entry.type === "deposit" || entry.type === "dividend" || entry.type === "gain") {
+          newValue += entry.amount
+        } else {
+          newValue -= entry.amount
+        }
+        const existing = acc.find((a) => a.date === date)
+        if (existing) {
+          existing.value = newValue
+        } else {
+          acc.push({ date, value: newValue })
+        }
+        return acc
+      },
+      [] as { date: string; value: number }[],
+    )
 
-  // Monthly evolution
-  const monthlyData = investmentEntries.reduce(
-    (acc, entry) => {
-      const month = new Date(entry.date).toLocaleDateString("pt-PT", { month: "short", year: "2-digit" })
-      const existing = acc.find((a) => a.month === month)
-      const value = ["deposit", "dividend", "gain"].includes(entry.type) ? entry.amount : -entry.amount
-      if (existing) {
-        existing.total += value
-      } else {
-        acc.push({ month, total: value })
-      }
-      return acc
-    },
-    [] as { month: string; total: number }[],
-  )
+  const handleAddEntry = () => {
+    if (!addInvestmentEntry || !asset || !amount) return
 
-  // Accumulate for chart
-  let accumulated = 0
-  const chartData = monthlyData.map((d) => {
-    accumulated += d.total
-    return { ...d, accumulated }
-  })
-
-  const handleSave = () => {
-    if (!asset || !amount || !investmentAccount || !addInvestmentEntry) return
+    const invAcct = accounts.find((a) => a.type === "investment")
+    if (!invAcct) return
 
     addInvestmentEntry({
-      accountId: investmentAccount.id,
+      accountId: invAcct.id,
       date: new Date().toISOString().split("T")[0],
       amount: Number.parseFloat(amount),
       type: entryType as "deposit" | "withdrawal" | "dividend" | "gain" | "loss",
@@ -163,32 +146,35 @@ export function InvestmentsView() {
 
     setIsOpen(false)
     setAsset("")
+    setAssetType("stocks")
     setAmount("")
     setQuantity("")
     setPricePerUnit("")
     setNotes("")
+    setEntryType("deposit")
   }
 
-  const getAssetIcon = (type: string) => {
-    const assetConfig = ASSET_TYPES.find((t) => t.value === type)
-    const Icon = assetConfig?.icon || Wallet
-    return <Icon className="h-4 w-4" style={{ color: assetConfig?.color }} />
-  }
-
-  if (isLoading) {
+  if (!financeContext || isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">A carregar investimentos...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Investimentos</h1>
-          <p className="text-muted-foreground mt-1">Acompanhe o seu portfólio de investimentos em detalhe.</p>
+          <h2 className="text-2xl font-serif font-bold flex items-center gap-2">
+            <TrendingUp className="h-7 w-7 text-violet-500" />
+            Investimentos
+          </h2>
+          <p className="text-muted-foreground">Acompanhe o seu portfólio de investimentos.</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
@@ -197,100 +183,106 @@ export function InvestmentsView() {
               Registar Movimento
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-violet-500" />
-                Registar Movimento de Investimento
+                Novo Movimento de Investimento
               </DialogTitle>
-              <DialogDescription>Registe compras, vendas, dividendos ou variações do seu portfólio.</DialogDescription>
+              <DialogDescription>Registe compras, vendas, dividendos ou mais/menos-valias.</DialogDescription>
             </DialogHeader>
-
             <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tipo de Movimento</Label>
-                  <Select value={entryType} onValueChange={setEntryType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ENTRY_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <span className={type.color}>{type.label}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Tipo de Ativo</Label>
-                  <Select value={assetType} onValueChange={setAssetType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ASSET_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label>Tipo de Movimento</Label>
+                <Select value={entryType} onValueChange={setEntryType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ENTRY_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        <span className={t.color}>{t.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-
+              <div className="space-y-2">
+                <Label>Tipo de Ativo</Label>
+                <Select value={assetType} onValueChange={setAssetType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ASSET_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }} />
+                          {t.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label>Nome do Ativo</Label>
                 <Input
-                  placeholder="Ex: AAPL, Bitcoin, ETF IWDA"
+                  placeholder="Ex: AAPL, Bitcoin, IWDA..."
                   value={asset}
                   onChange={(e) => setAsset(e.target.value)}
                 />
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Valor Total (€)</Label>
-                  <Input type="number" placeholder="1000" value={amount} onChange={(e) => setAmount(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Quantidade (opcional)</Label>
+                  <Label>Montante (€)</Label>
                   <Input
                     type="number"
-                    placeholder="10"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Quantidade</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
+                    min="0"
+                    step="0.0001"
                   />
                 </div>
               </div>
-
               <div className="space-y-2">
-                <Label>Preço por Unidade (opcional)</Label>
+                <Label>Preço por Unidade (€)</Label>
                 <Input
                   type="number"
-                  placeholder="100"
+                  placeholder="0.00"
                   value={pricePerUnit}
                   onChange={(e) => setPricePerUnit(e.target.value)}
+                  min="0"
+                  step="0.01"
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Notas (opcional)</Label>
-                <Input placeholder="Ex: Compra mensal DCA" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <Input placeholder="Adicione notas..." value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
             </div>
-
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsOpen(false)}>
                 Cancelar
               </Button>
               <Button
-                onClick={handleSave}
+                onClick={handleAddEntry}
                 disabled={!asset || !amount}
-                className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
+                className="bg-gradient-to-r from-violet-500 to-purple-500"
               >
-                Guardar
+                Registar
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -299,55 +291,43 @@ export function InvestmentsView() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="bg-gradient-to-br from-violet-500 to-purple-600 text-white border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-white/20">
-                <TrendingUp className="h-6 w-6" />
-              </div>
+        <Card className="bg-gradient-to-br from-violet-500/10 to-purple-500/10 border-violet-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-violet-100 text-sm">Total Investido</p>
-                <p className="text-3xl font-bold">{formatAmount(totalInvested)}</p>
+                <p className="text-sm text-muted-foreground">Total Investido</p>
+                <p className="text-3xl font-bold text-violet-600">{formatAmount(totalInvested)}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-violet-500/20 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-violet-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-white/20">
-                <ArrowUpRight className="h-6 w-6" />
-              </div>
+        <Card className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border-blue-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-100 text-sm">Entradas</p>
-                <p className="text-3xl font-bold">
-                  {formatAmount(
-                    investmentEntries
-                      .filter((e) => ["deposit", "dividend", "gain"].includes(e.type))
-                      .reduce((sum, e) => sum + e.amount, 0),
-                  )}
-                </p>
+                <p className="text-sm text-muted-foreground">Classes de Ativos</p>
+                <p className="text-3xl font-bold text-blue-600">{portfolioByType.length}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+                <PieChart className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-500 to-rose-600 text-white border-0">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-white/20">
-                <ArrowDownRight className="h-6 w-6" />
-              </div>
+        <Card className="bg-gradient-to-br from-emerald-500/10 to-green-500/10 border-emerald-500/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-red-100 text-sm">Saídas</p>
-                <p className="text-3xl font-bold">
-                  {formatAmount(
-                    investmentEntries
-                      .filter((e) => ["withdrawal", "loss"].includes(e.type))
-                      .reduce((sum, e) => sum + e.amount, 0),
-                  )}
-                </p>
+                <p className="text-sm text-muted-foreground">Movimentos</p>
+                <p className="text-3xl font-bold text-emerald-600">{investmentEntries.length}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <ArrowUpRight className="h-6 w-6 text-emerald-600" />
               </div>
             </div>
           </CardContent>
@@ -356,192 +336,162 @@ export function InvestmentsView() {
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Portfolio Distribution */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <PieChart className="h-5 w-5 text-violet-500" />
+              <PieChart className="h-5 w-5" />
               Distribuição do Portfólio
             </CardTitle>
           </CardHeader>
           <CardContent>
             {portfolioByType.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsPieChart>
-                    <Pie
-                      data={portfolioByType}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {portfolioByType.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => formatAmount(value)}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                    />
-                  </RechartsPieChart>
-                </ResponsiveContainer>
-              </div>
+              <ResponsiveContainer width="100%" height={250}>
+                <RechartsPieChart>
+                  <Pie
+                    data={portfolioByType}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    {portfolioByType.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => formatAmount(value)}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                  />
+                </RechartsPieChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Sem dados de investimento
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                <div className="text-center">
+                  <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Sem investimentos registados</p>
+                </div>
               </div>
             )}
-            <div className="flex flex-wrap gap-2 mt-4 justify-center">
-              {portfolioByType.map((entry) => (
-                <Badge key={entry.name} variant="outline" style={{ borderColor: entry.color, color: entry.color }}>
-                  {entry.name}: {formatAmount(entry.value)}
-                </Badge>
-              ))}
-            </div>
+            {portfolioByType.length > 0 && (
+              <div className="flex flex-wrap gap-2 justify-center mt-4">
+                {portfolioByType.map((item) => (
+                  <Badge key={item.name} variant="outline" className="gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                    {item.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
+        {/* Evolution Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-violet-500" />
+              <BarChart3 className="h-5 w-5" />
               Evolução do Portfólio
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {chartData.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="investGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
-                    <Tooltip
-                      formatter={(value: number) => formatAmount(value)}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="accumulated"
-                      stroke="#8B5CF6"
-                      strokeWidth={2}
-                      fill="url(#investGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+            {evolutionData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <AreaChart data={evolutionData}>
+                  <defs>
+                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="date" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip
+                    formatter={(value: number) => formatAmount(value)}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#8B5CF6" fillOpacity={1} fill="url(#colorValue)" />
+                </AreaChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                Sem histórico de investimento
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                <p>Sem dados para mostrar</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Assets List */}
+      {/* Recent Entries */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-violet-500" />
-            Os Meus Ativos
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {portfolioByAsset.filter((a) => a.value > 0).length > 0 ? (
-            <div className="space-y-3">
-              {portfolioByAsset
-                .filter((a) => a.value > 0)
-                .map((asset) => (
-                  <div
-                    key={asset.asset}
-                    className="flex items-center justify-between p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      {getAssetIcon(asset.assetType)}
-                      <div>
-                        <p className="font-medium">{asset.asset}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {ASSET_TYPES.find((t) => t.value === asset.assetType)?.label}
-                          {asset.quantity > 0 && ` • ${asset.quantity} unid.`}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="font-semibold text-lg">{formatAmount(asset.value)}</p>
-                  </div>
-                ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">Ainda não registou nenhum ativo.</div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Recent Movements */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Movimentos Recentes</CardTitle>
+          <CardTitle>Últimos Movimentos</CardTitle>
         </CardHeader>
         <CardContent>
           {investmentEntries.length > 0 ? (
-            <div className="space-y-2">
-              {investmentEntries.slice(0, 10).map((entry) => (
-                <div
-                  key={entry.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    {getAssetIcon(entry.assetType)}
-                    <div>
-                      <p className="font-medium">{entry.asset}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(entry.date).toLocaleDateString("pt-PT")} •{" "}
-                        {ENTRY_TYPES.find((t) => t.value === entry.type)?.label}
-                      </p>
+            <div className="space-y-3">
+              {investmentEntries.slice(0, 10).map((entry) => {
+                const assetTypeInfo = ASSET_TYPES.find((t) => t.value === entry.assetType)
+                const Icon = assetTypeInfo?.icon || TrendingUp
+                const typeInfo = ENTRY_TYPES.find((t) => t.value === entry.type)
+                const isPositive = entry.type === "deposit" || entry.type === "dividend" || entry.type === "gain"
+                return (
+                  <div
+                    key={entry.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="h-10 w-10 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: `${assetTypeInfo?.color || "#64748B"}20` }}
+                      >
+                        <Icon className="h-5 w-5" style={{ color: assetTypeInfo?.color || "#64748B" }} />
+                      </div>
+                      <div>
+                        <p className="font-medium">{entry.asset}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {typeInfo?.label} • {assetTypeInfo?.label} •{" "}
+                          {new Date(entry.date).toLocaleDateString("pt-PT")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className={`font-semibold ${isPositive ? "text-emerald-600" : "text-red-600"}`}>
+                          {isPositive ? "+" : "-"}
+                          {formatAmount(entry.amount)}
+                        </span>
+                        {entry.quantity && <p className="text-xs text-muted-foreground">{entry.quantity} unidades</p>}
+                      </div>
+                      {deleteInvestmentEntry && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteInvestmentEntry(entry.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <p
-                      className={`font-semibold ${
-                        ["deposit", "dividend", "gain"].includes(entry.type) ? "text-emerald-600" : "text-red-600"
-                      }`}
-                    >
-                      {["deposit", "dividend", "gain"].includes(entry.type) ? "+" : "-"}
-                      {formatAmount(entry.amount)}
-                    </p>
-                    {deleteInvestmentEntry && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => deleteInvestmentEntry(entry.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
-              Ainda não registou nenhum movimento de investimento.
+              <p>Sem movimentos registados</p>
             </div>
           )}
         </CardContent>

@@ -85,15 +85,20 @@ interface FinanceContextType {
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined)
 
-export function FinanceProvider({ children }: { children: ReactNode }) {
+interface FinanceProviderProps {
+  children: ReactNode
+  userId?: string
+}
+
+export function FinanceProvider({ children, userId: initialUserId }: FinanceProviderProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
-  const [budgets, setBudgets] = useState<Budget[]>([]) // Initialize budgets state
+  const [budgets, setBudgets] = useState<Budget[]>([])
   const [period, setPeriod] = useState<Period>("month")
   const [isLoading, setIsLoading] = useState(true)
-  const [userId, setUserId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(initialUserId || null)
   const [rules, setRules] = useState<AutoRule[]>([])
   const [investmentEntries, setInvestmentEntries] = useState<InvestmentEntry[]>([])
   const [savingsEntries, setSavingsEntries] = useState<SavingsEntry[]>([])
@@ -108,7 +113,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const goalsRef = useRef(goals)
   const rulesRef = useRef(rules)
   const userIdRef = useRef(userId)
-  const budgetsRef = useRef(budgets) // Add budgetsRef
+  const budgetsRef = useRef(budgets)
 
   useEffect(() => {
     accountsRef.current = accounts
@@ -127,7 +132,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [userId])
 
   useEffect(() => {
-    budgetsRef.current = budgets // Update budgetsRef
+    budgetsRef.current = budgets
   }, [budgets])
 
   useEffect(() => {
@@ -166,18 +171,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
       // Load all data in parallel
       const [categoriesRes, accountsRes, goalsRes, transactionsRes, budgetsRes] = await Promise.all([
-        // Added budgetsRes
-        supabase
-          .from("categories")
-          .select("*")
-          .eq("user_id", user.id),
+        supabase.from("categories").select("*").eq("user_id", user.id),
         supabase.from("accounts").select("*").eq("user_id", user.id),
         supabase.from("goals").select("*").eq("user_id", user.id),
         supabase.from("transactions").select("*").eq("user_id", user.id).order("date", { ascending: false }),
-        supabase
-          .from("budgets")
-          .select("*")
-          .eq("user_id", user.id), // Fetch budgets
+        supabase.from("budgets").select("*").eq("user_id", user.id),
       ])
 
       // Set categories or initialize with defaults
@@ -213,7 +211,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             createdCats.map((c: any) => ({
               id: c.id,
               name: c.name,
-              type: c.type as TransactionType,
+              type: c.type,
               color: c.color,
               icon: c.icon,
               budget: c.budget || 0,
@@ -302,8 +300,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             goalId: t.goal_id,
             isRecurring: t.is_recurring || false,
             recurringFrequency: t.recurring_interval as "monthly" | "weekly" | "yearly" | undefined,
-            ruleId: t.rule_id, // Added ruleId
-            toAccountId: t.to_account_id, // Added toAccountId
+            ruleId: t.rule_id,
+            toAccountId: t.to_account_id,
           })),
         )
       }
@@ -467,44 +465,40 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         // Check if this is from an automation (has ruleId or description starts with "Automação:")
         const isAutomation = transaction.ruleId || transaction.description?.startsWith("Automação:")
 
-        if (transaction.description) {
-          // Parse transfer details from description
-          // Format: "Transferência: [Source Account] → [Destination Account]"
-          // Or: "Automação: [Rule Name] (X% de [Description])"
-          let sourceAccount: Account | undefined
-          let destAccount: Account | undefined
+        let sourceAccount: Account | undefined
+        let destAccount: Account | undefined
 
-          const transferMatch = transaction.description.match(/Transferência: (.+) → (.+)/)
-          const automationMatch = transaction.description.match(/Automação: .+ $$.+$$/)
+        const transferMatch = transaction.description?.match(/Transferência: (.+) → (.+)/)
+        const automationMatch = transaction.description?.match(/Automação: .+ $$.+$$/)
 
-          if (transferMatch) {
-            const sourceAccountName = transferMatch[1]
-            const destAccountName = transferMatch[2]
-            sourceAccount = accounts.find((a) => a.name === sourceAccountName)
-            destAccount = accounts.find((a) => a.name === destAccountName)
-          } else if (transaction.accountId && transaction.toAccountId) {
-            sourceAccount = accounts.find((a) => a.id === transaction.accountId)
-            destAccount = accounts.find((a) => a.id === transaction.toAccountId)
-          }
+        if (transferMatch) {
+          const sourceAccountName = transferMatch[1]
+          const destAccountName = transferMatch[2]
+          sourceAccount = accounts.find((a) => a.name === sourceAccountName)
+          destAccount = accounts.find((a) => a.name === destAccountName)
+        } else if (transaction.accountId && transaction.toAccountId) {
+          sourceAccount = accounts.find((a) => a.id === transaction.accountId)
+          destAccount = accounts.find((a) => a.id === transaction.toAccountId)
+        }
 
-          if (sourceAccount && destAccount) {
-            // Reverse: add back to source, remove from destination
-            await updateAccount(sourceAccount.id, { balance: sourceAccount.balance + transaction.amount })
-            await updateAccount(destAccount.id, { balance: destAccount.balance - transaction.amount })
-          }
+        if (sourceAccount && destAccount) {
+          // Reverse: add back to source, remove from destination
+          await updateAccount(sourceAccount.id, { balance: sourceAccount.balance + transaction.amount })
+          await updateAccount(destAccount.id, { balance: destAccount.balance - transaction.amount })
+        }
 
-          // If this was from an automation, update the rule's execution count and history
-          if (isAutomation && transaction.ruleId) {
-            const rule = rules.find((r) => r.id === transaction.ruleId)
-            if (rule) {
-              const updatedExecutions = (rule.executions || []).map((exec) =>
-                exec.transactionId === id ? { ...exec, reversed: true } : exec,
-              )
-              updateRuleFunc(transaction.ruleId, {
-                executionCount: Math.max(0, rule.executionCount - 1),
-                executions: updatedExecutions,
-              })
-            }
+        // If this was from an automation, update the rule's execution count and history
+        if (isAutomation && transaction.ruleId) {
+          const rule = rules.find((r) => r.id === transaction.ruleId)
+          if (rule) {
+            const updatedExecutions = (rule.executions || []).map((exec) =>
+              exec.transactionId === id ? { ...exec, reversed: true } : exec,
+            )
+            updateRuleFunc(transaction.ruleId, {
+              lastExecuted: new Date().toISOString(),
+              executionCount: Math.max(0, rule.executionCount - 1),
+              executions: updatedExecutions,
+            })
           }
         }
       } else if (transaction.accountId) {
@@ -599,7 +593,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateBudget = useCallback(
-    // useCallback added
     (categoryId: string, limit: number) => {
       setBudgets((prev) => {
         const existing = prev.find((b) => b.categoryId === categoryId)
@@ -783,7 +776,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Use budgetsRef in updateBudget
   const getSummary = () => {
     const totalIncome = transactions.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0)
     const totalExpense = transactions.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0)
@@ -804,7 +796,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }
 
   const getBudgetStatus = (categoryId: string) => {
-    const budget = budgets.find((b) => b.categoryId === categoryId) // Use budgets state
+    const budget = budgets.find((b) => b.categoryId === categoryId)
     const spent = transactions.filter((t) => t.category === categoryId).reduce((acc, t) => acc + t.amount, 0)
 
     return {
@@ -978,8 +970,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 category: "Transferência Automática",
                 description: `Automação: ${rule.name} (${rule.action.percentage}% de ${transaction.description || transaction.category})`,
                 date: new Date().toISOString().split("T")[0],
-                rule_id: rule.id, // Link to rule
-                to_account_id: targetAccount.id, // Link to target account
+                rule_id: rule.id,
+                to_account_id: targetAccount.id,
               })
               .select()
               .single()
@@ -997,7 +989,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 category: "Transferência Automática",
                 accountId: sourceAccount.id,
                 toAccountId: targetAccount.id,
-                ruleId: rule.id, // Link to rule
+                ruleId: rule.id,
               },
               ...transactions,
             ])
@@ -1036,7 +1028,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 category: "Poupança Automática",
                 description: `Automação: ${rule.name} → Meta ${targetGoal.name}`,
                 date: new Date().toISOString().split("T")[0],
-                rule_id: rule.id, // Link to rule
+                rule_id: rule.id,
               })
               .select()
               .single()
@@ -1152,10 +1144,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>
 }
 
-export function useFinance() {
+function useFinance() {
   const context = useContext(FinanceContext)
   if (context === undefined) {
     throw new Error("useFinance must be used within a FinanceProvider")
   }
   return context
 }
+
+export { useFinance }
