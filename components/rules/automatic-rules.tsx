@@ -17,20 +17,25 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useFinance } from "@/components/providers/finance-provider"
-import { useCurrency } from "@/contexts/currency-context"
-import { Plus, Zap, Pencil, Trash2, Sparkles, CheckCircle2, ChevronDown, History, Undo2, Loader2 } from "lucide-react"
+import { Plus, Zap, Pencil, Trash2, ArrowRight, Sparkles, CheckCircle2, Clock } from "lucide-react"
 import type { AutoRule } from "@/lib/types"
 
 export function AutomaticRules() {
-  const { formatAmount } = useCurrency()
   const financeContext = useFinance()
+
+  const accounts = financeContext?.accounts || []
+  const goals = financeContext?.goals || []
+  const categories = financeContext?.categories || []
+  const rules = financeContext?.rules || []
+  const addRule = financeContext?.addRule
+  const updateRule = financeContext?.updateRule
+  const deleteRule = financeContext?.deleteRule
 
   const [isOpen, setIsOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
-  const [expandedRules, setExpandedRules] = useState<Set<string>>(new Set())
 
+  // Form state
   const [name, setName] = useState("")
   const [triggerType, setTriggerType] = useState<AutoRule["trigger"]["type"]>("income_received")
   const [triggerValue, setTriggerValue] = useState("")
@@ -54,30 +59,6 @@ export function AutomaticRules() {
     setEditingRule(null)
   }
 
-  if (!financeContext) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">A carregar automações...</p>
-        </div>
-      </div>
-    )
-  }
-
-  const { accounts, goals, categories, rules, addRule, updateRule, deleteRule, isLoading } = financeContext
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">A carregar automações...</p>
-        </div>
-      </div>
-    )
-  }
-
   const handleEdit = (rule: AutoRule) => {
     setEditingRule(rule)
     setName(rule.name)
@@ -93,7 +74,10 @@ export function AutomaticRules() {
   }
 
   const handleSaveRule = () => {
-    if (!name) return
+    if (!addRule || !updateRule) {
+      console.error("[v0] addRule or updateRule function not available")
+      return
+    }
 
     const ruleData = {
       name,
@@ -118,44 +102,65 @@ export function AutomaticRules() {
       addRule(ruleData)
     }
 
-    setIsOpen(false)
     resetForm()
+    setIsOpen(false)
   }
 
-  const toggleExpanded = (ruleId: string) => {
-    setExpandedRules((prev) => {
-      const next = new Set(prev)
-      if (next.has(ruleId)) {
-        next.delete(ruleId)
-      } else {
-        next.add(ruleId)
-      }
-      return next
-    })
-  }
-
-  const getTargetName = (rule: AutoRule) => {
-    if (rule.action.targetAccountId) {
-      const account = accounts.find((a) => a.id === rule.action.targetAccountId)
-      return account?.name || "Conta desconhecida"
+  const handleToggleRule = (ruleId: string, enabled: boolean) => {
+    if (updateRule) {
+      updateRule(ruleId, { enabled })
     }
-    if (rule.action.targetGoalId) {
-      const goal = goals.find((g) => g.id === rule.action.targetGoalId)
-      return goal?.name || "Meta desconhecida"
-    }
-    return "Não definido"
   }
 
-  const incomeCategories = categories.filter((c) => c.type === "income")
+  const handleDeleteRule = (ruleId: string) => {
+    if (deleteRule && confirm("Tem a certeza que deseja eliminar esta regra?")) {
+      deleteRule(ruleId)
+    }
+  }
+
+  const getTriggerLabel = (trigger: AutoRule["trigger"]) => {
+    switch (trigger.type) {
+      case "income_received":
+        return `Quando receber "${trigger.value}"`
+      case "expense_contains":
+        return `Quando despesa contiver "${trigger.value}"`
+      case "amount_above":
+        return `Quando valor for acima de ${trigger.value}€`
+      case "category_match":
+        return `Quando categoria for "${trigger.category}"`
+      default:
+        return "Condição desconhecida"
+    }
+  }
+
+  const getActionLabel = (action: AutoRule["action"]) => {
+    const target = action.targetAccountId
+      ? accounts.find((a) => a.id === action.targetAccountId)?.name
+      : action.targetGoalId
+        ? goals.find((g) => g.id === action.targetGoalId)?.name
+        : "Destino desconhecido"
+
+    switch (action.type) {
+      case "transfer_percentage":
+        return `Transferir ${action.percentage}% para ${target}`
+      case "transfer_fixed":
+        return `Transferir ${action.fixedAmount}€ para ${target}`
+      case "categorize":
+        return `Categorizar como ${action.targetCategory}`
+      default:
+        return "Ação desconhecida"
+    }
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Zap className="h-5 w-5 text-amber-500" />
-          <span className="text-sm text-muted-foreground">
-            {rules.length} {rules.length === 1 ? "regra" : "regras"} configuradas
-          </span>
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Automações</h1>
+          <p className="text-muted-foreground mt-1">
+            Crie regras para automatizar transferências e categorizações. As regras são executadas automaticamente
+            quando uma transação correspondente é registada.
+          </p>
         </div>
         <Dialog
           open={isOpen}
@@ -173,53 +178,43 @@ export function AutomaticRules() {
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-amber-500" />
-                {editingRule ? "Editar Regra" : "Nova Regra de Automação"}
+                <Zap className="h-5 w-5 text-amber-500" />
+                {editingRule ? "Editar Regra" : "Criar Nova Regra"}
               </DialogTitle>
               <DialogDescription>
-                Configure uma regra para automatizar transferências quando certas condições são cumpridas.
+                {editingRule
+                  ? "Modifique as configurações da regra de automação."
+                  : "Configure uma regra que será executada automaticamente quando uma transação correspondente for registada."}
               </DialogDescription>
             </DialogHeader>
+
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Nome da Regra</Label>
-                <Input placeholder="Ex: Poupar 10% do salário" value={name} onChange={(e) => setName(e.target.value)} />
+                <Label htmlFor="name">Nome da Regra</Label>
+                <Input
+                  id="name"
+                  placeholder="Ex: Poupar 10% do salário"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
 
               <div className="space-y-2">
-                <Label>Quando...</Label>
+                <Label>Quando (Trigger)</Label>
                 <Select value={triggerType} onValueChange={(v) => setTriggerType(v as AutoRule["trigger"]["type"])}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="income_received">Receber uma receita</SelectItem>
-                    <SelectItem value="category_match">Transação de categoria específica</SelectItem>
-                    <SelectItem value="amount_above">Montante acima de...</SelectItem>
+                    <SelectItem value="income_received">Receber rendimento com...</SelectItem>
+                    <SelectItem value="expense_contains">Despesa contiver...</SelectItem>
+                    <SelectItem value="amount_above">Valor acima de...</SelectItem>
+                    <SelectItem value="category_match">Categoria específica</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {triggerType === "income_received" && (
-                <div className="space-y-2">
-                  <Label>Categoria de Receita (opcional)</Label>
-                  <Select value={triggerCategory} onValueChange={setTriggerCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Qualquer receita" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="any">Qualquer receita</SelectItem>
-                      {incomeCategories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {triggerType === "category_match" && (
+              {triggerType === "category_match" ? (
                 <div className="space-y-2">
                   <Label>Categoria</Label>
                   <Select value={triggerCategory} onValueChange={setTriggerCategory}>
@@ -228,21 +223,24 @@ export function AutomaticRules() {
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
+                        <SelectItem key={cat.id} value={cat.name}>
                           {cat.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-
-              {triggerType === "amount_above" && (
+              ) : (
                 <div className="space-y-2">
-                  <Label>Montante mínimo (€)</Label>
+                  <Label>Valor / Palavra-chave</Label>
                   <Input
-                    type="number"
-                    placeholder="0.00"
+                    placeholder={
+                      triggerType === "amount_above"
+                        ? "1000"
+                        : triggerType === "income_received"
+                          ? "Salário"
+                          : "Netflix"
+                    }
                     value={triggerValue}
                     onChange={(e) => setTriggerValue(e.target.value)}
                   />
@@ -250,7 +248,7 @@ export function AutomaticRules() {
               )}
 
               <div className="space-y-2">
-                <Label>Ação</Label>
+                <Label>Então (Ação)</Label>
                 <Select value={actionType} onValueChange={(v) => setActionType(v as AutoRule["action"]["type"])}>
                   <SelectTrigger>
                     <SelectValue />
@@ -270,8 +268,6 @@ export function AutomaticRules() {
                     placeholder="10"
                     value={percentage}
                     onChange={(e) => setPercentage(e.target.value)}
-                    min="1"
-                    max="100"
                   />
                 </div>
               )}
@@ -281,47 +277,45 @@ export function AutomaticRules() {
                   <Label>Valor Fixo (€)</Label>
                   <Input
                     type="number"
-                    placeholder="0.00"
+                    placeholder="100"
                     value={fixedAmount}
                     onChange={(e) => setFixedAmount(e.target.value)}
-                    min="0"
                   />
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label>Transferir para...</Label>
+                <Label>Destino</Label>
                 <Select
-                  value={targetAccountId || targetGoalId}
+                  value={targetAccountId || targetGoalId || ""}
                   onValueChange={(v) => {
-                    const account = accounts.find((a) => a.id === v)
-                    const goal = goals.find((g) => g.id === v)
-                    if (account) {
+                    const isAccount = accounts.some((a) => a.id === v)
+                    if (isAccount) {
                       setTargetAccountId(v)
                       setTargetGoalId("")
-                    } else if (goal) {
+                    } else {
                       setTargetGoalId(v)
                       setTargetAccountId("")
                     }
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione destino" />
+                    <SelectValue placeholder="Selecione conta ou meta" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="" disabled>
-                      Contas
-                    </SelectItem>
-                    {accounts.map((account) => (
-                      <SelectItem key={account.id} value={account.id}>
-                        {account.name}
-                      </SelectItem>
-                    ))}
+                    {accounts.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Contas</div>
+                        {accounts.map((acc) => (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            {acc.name}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
                     {goals.length > 0 && (
                       <>
-                        <SelectItem value="" disabled>
-                          Metas
-                        </SelectItem>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">Metas</div>
                         {goals.map((goal) => (
                           <SelectItem key={goal.id} value={goal.id}>
                             {goal.name}
@@ -333,12 +327,13 @@ export function AutomaticRules() {
                 </Select>
               </div>
             </div>
+
             <DialogFooter>
               <Button
                 variant="outline"
                 onClick={() => {
-                  setIsOpen(false)
                   resetForm()
+                  setIsOpen(false)
                 }}
               >
                 Cancelar
@@ -346,131 +341,124 @@ export function AutomaticRules() {
               <Button
                 onClick={handleSaveRule}
                 disabled={!name || (!targetAccountId && !targetGoalId)}
-                className="bg-gradient-to-r from-amber-500 to-orange-500"
+                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
               >
-                {editingRule ? "Guardar" : "Criar Regra"}
+                {editingRule ? "Guardar Alterações" : "Criar Regra"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <Card className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20">
-        <CardContent className="pt-6">
+      {/* Info Card */}
+      <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 dark:border-amber-800">
+        <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <Zap className="h-5 w-5 text-amber-500 mt-0.5" />
+            <Sparkles className="h-5 w-5 text-amber-600 mt-0.5" />
             <div>
-              <p className="font-medium">Como funcionam as automações?</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                As regras são executadas automaticamente quando regista uma transação que corresponde às condições. Por
-                exemplo, ao registar o salário, uma percentagem pode ser automaticamente transferida para poupança.
+              <p className="font-medium text-amber-900 dark:text-amber-100">Como funcionam as automações?</p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                Quando regista uma transação que corresponde a uma regra ativa, a automação é executada automaticamente.
+                Por exemplo: se criar uma regra "Quando receber Salário, transferir 10% para Poupança", ao registar uma
+                receita com "Salário" na descrição ou categoria, 10% será automaticamente transferido para a conta de
+                poupança.
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {rules.length > 0 ? (
-        <div className="space-y-4">
-          {rules.map((rule) => (
-            <Collapsible key={rule.id} open={expandedRules.has(rule.id)} onOpenChange={() => toggleExpanded(rule.id)}>
-              <Card className={`transition-all ${rule.enabled ? "" : "opacity-60"}`}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+      {/* Rules List */}
+      <div className="grid gap-4">
+        {rules.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center">
+              <Zap className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-medium mb-2">Sem regras configuradas</h3>
+              <p className="text-muted-foreground mb-4">Crie a sua primeira regra para automatizar as suas finanças.</p>
+              <Button onClick={() => setIsOpen(true)} variant="outline" className="gap-2">
+                <Plus className="h-4 w-4" />
+                Criar Regra
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          rules.map((rule) => (
+            <Card
+              key={rule.id}
+              className={`transition-all duration-300 ${
+                rule.enabled ? "border-amber-200 dark:border-amber-800 shadow-md" : "opacity-60 border-muted"
+              }`}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
                       <div
-                        className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                          rule.enabled ? "bg-amber-500/20" : "bg-muted"
+                        className={`p-2 rounded-lg ${
+                          rule.enabled ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-muted"
                         }`}
                       >
-                        <Zap className={`h-5 w-5 ${rule.enabled ? "text-amber-500" : "text-muted-foreground"}`} />
+                        <Zap className={`h-4 w-4 ${rule.enabled ? "text-white" : "text-muted-foreground"}`} />
                       </div>
                       <div>
-                        <p className="font-medium">{rule.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {rule.action.type === "transfer_percentage"
-                            ? `${rule.action.percentage}%`
-                            : formatAmount(rule.action.fixedAmount || 0)}{" "}
-                          → {getTargetName(rule)}
-                        </p>
+                        <h3 className="font-semibold text-foreground">{rule.name}</h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          {rule.enabled ? (
+                            <Badge
+                              variant="secondary"
+                              className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                            >
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Ativa
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                              Inativa
+                            </Badge>
+                          )}
+                          {rule.executionCount && rule.executionCount > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {rule.executionCount}x executada
+                            </Badge>
+                          )}
+                          {rule.lastExecuted && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {new Date(rule.lastExecuted).toLocaleDateString("pt-PT")}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={rule.enabled ? "default" : "secondary"}>{rule.executionCount} execuções</Badge>
-                      <Switch checked={rule.enabled} onCheckedChange={(enabled) => updateRule(rule.id, { enabled })} />
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive"
-                        onClick={() => deleteRule(rule.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                      <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <ChevronDown
-                            className={`h-4 w-4 transition-transform ${expandedRules.has(rule.id) ? "rotate-180" : ""}`}
-                          />
-                        </Button>
-                      </CollapsibleTrigger>
+
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mt-3">
+                      <span className="font-medium">{getTriggerLabel(rule.trigger)}</span>
+                      <ArrowRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                      <span className="font-medium">{getActionLabel(rule.action)}</span>
                     </div>
                   </div>
-                  <CollapsibleContent className="mt-4">
-                    <div className="border-t pt-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <History className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Histórico de Execuções</span>
-                      </div>
-                      {rule.executions && rule.executions.length > 0 ? (
-                        <div className="space-y-2">
-                          {rule.executions.slice(0, 5).map((exec) => (
-                            <div
-                              key={exec.id}
-                              className={`flex items-center justify-between p-2 rounded-lg bg-muted/50 ${
-                                exec.reversed ? "opacity-60" : ""
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                {exec.reversed ? (
-                                  <Undo2 className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                )}
-                                <span className="text-sm">{new Date(exec.date).toLocaleDateString("pt-PT")}</span>
-                                <span className="text-sm text-muted-foreground">{exec.triggeredBy}</span>
-                              </div>
-                              <span className={`text-sm font-medium ${exec.reversed ? "line-through" : ""}`}>
-                                {formatAmount(exec.amount)}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Sem execuções registadas</p>
-                      )}
-                    </div>
-                  </CollapsibleContent>
-                </CardContent>
-              </Card>
-            </Collapsible>
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center">
-              <Zap className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-              <p className="font-medium">Sem regras configuradas</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Crie a sua primeira regra para automatizar as suas finanças.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
+                  <div className="flex items-center gap-2">
+                    <Switch checked={rule.enabled} onCheckedChange={(checked) => handleToggleRule(rule.id, checked)} />
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)} className="h-8 w-8">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeleteRule(rule.id)}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
     </div>
   )
 }
