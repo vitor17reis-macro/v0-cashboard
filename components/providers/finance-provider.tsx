@@ -978,7 +978,6 @@ export function FinanceProvider({ children, userId: initialUserId }: FinanceProv
 
             const transactionId = data?.id || newTransactionId
 
-            // Update local state with ruleId
             setTransactions((transactions) => [
               {
                 id: transactionId,
@@ -1144,12 +1143,9 @@ export function FinanceProvider({ children, userId: initialUserId }: FinanceProv
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>
 }
 
-function useFinance() {
+function useFinance(): FinanceContextType | null {
   const context = useContext(FinanceContext)
-  if (context === undefined) {
-    throw new Error("useFinance must be used within a FinanceProvider")
-  }
-  return context
+  return context ?? null
 }
 
 export { useFinance }

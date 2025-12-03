@@ -63,14 +63,8 @@ const ENTRY_TYPES = [
 ]
 
 export function InvestmentsView() {
-  const financeContext = useFinance()
   const { formatAmount } = useCurrency()
-
-  const accounts = financeContext?.accounts ?? []
-  const investmentEntries = financeContext?.investmentEntries ?? []
-  const addInvestmentEntry = financeContext?.addInvestmentEntry
-  const deleteInvestmentEntry = financeContext?.deleteInvestmentEntry
-  const isLoading = financeContext?.isLoading ?? true
+  const financeContext = useFinance()
 
   const [isOpen, setIsOpen] = useState(false)
   const [entryType, setEntryType] = useState<string>("deposit")
@@ -81,10 +75,33 @@ export function InvestmentsView() {
   const [pricePerUnit, setPricePerUnit] = useState("")
   const [notes, setNotes] = useState("")
 
+  if (!financeContext) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">A carregar investimentos...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const { accounts, investmentEntries, addInvestmentEntry, deleteInvestmentEntry, isLoading } = financeContext
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">A carregar investimentos...</p>
+        </div>
+      </div>
+    )
+  }
+
   const investmentAccount = accounts.find((a) => a.type === "investment")
   const totalInvested = investmentAccount?.balance ?? 0
 
-  // Calculate portfolio by asset type
   const portfolioByType = ASSET_TYPES.map((type) => {
     const entries = investmentEntries.filter((e) => e.assetType === type.value)
     const total = entries.reduce((sum, e) => {
@@ -102,7 +119,6 @@ export function InvestmentsView() {
     }
   }).filter((p) => p.value > 0)
 
-  // Evolution data
   const evolutionData = investmentEntries
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
     .reduce(
@@ -127,7 +143,7 @@ export function InvestmentsView() {
     )
 
   const handleAddEntry = () => {
-    if (!addInvestmentEntry || !asset || !amount) return
+    if (!asset || !amount) return
 
     const invAcct = accounts.find((a) => a.type === "investment")
     if (!invAcct) return
@@ -154,20 +170,8 @@ export function InvestmentsView() {
     setEntryType("deposit")
   }
 
-  if (!financeContext || isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">A carregar investimentos...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-serif font-bold flex items-center gap-2">
@@ -289,7 +293,6 @@ export function InvestmentsView() {
         </Dialog>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-gradient-to-br from-violet-500/10 to-purple-500/10 border-violet-500/20">
           <CardContent className="pt-6">
@@ -334,9 +337,7 @@ export function InvestmentsView() {
         </Card>
       </div>
 
-      {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Portfolio Distribution */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -392,7 +393,6 @@ export function InvestmentsView() {
           </CardContent>
         </Card>
 
-        {/* Evolution Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -433,7 +433,6 @@ export function InvestmentsView() {
         </Card>
       </div>
 
-      {/* Recent Entries */}
       <Card>
         <CardHeader>
           <CardTitle>Últimos Movimentos</CardTitle>
@@ -474,16 +473,14 @@ export function InvestmentsView() {
                         </span>
                         {entry.quantity && <p className="text-xs text-muted-foreground">{entry.quantity} unidades</p>}
                       </div>
-                      {deleteInvestmentEntry && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteInvestmentEntry(entry.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => deleteInvestmentEntry(entry.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 )

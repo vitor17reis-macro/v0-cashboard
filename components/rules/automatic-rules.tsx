@@ -26,14 +26,6 @@ import type { AutoRule } from "@/lib/types"
 export function AutomaticRules() {
   const { formatAmount } = useCurrency()
   const financeContext = useFinance()
-  const accounts = financeContext?.accounts ?? []
-  const goals = financeContext?.goals ?? []
-  const categories = financeContext?.categories ?? []
-  const rules = financeContext?.rules ?? []
-  const addRule = financeContext?.addRule
-  const updateRule = financeContext?.updateRule
-  const deleteRule = financeContext?.deleteRule
-  const isLoading = financeContext?.isLoading ?? true
 
   const [isOpen, setIsOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
@@ -60,6 +52,30 @@ export function AutomaticRules() {
     setTargetAccountId("")
     setTargetGoalId("")
     setEditingRule(null)
+  }
+
+  if (!financeContext) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">A carregar automações...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const { accounts, goals, categories, rules, addRule, updateRule, deleteRule, isLoading } = financeContext
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">A carregar automações...</p>
+        </div>
+      </div>
+    )
   }
 
   const handleEdit = (rule: AutoRule) => {
@@ -96,9 +112,9 @@ export function AutomaticRules() {
       },
     }
 
-    if (editingRule && updateRule) {
+    if (editingRule) {
       updateRule(editingRule.id, ruleData)
-    } else if (addRule) {
+    } else {
       addRule(ruleData)
     }
 
@@ -128,17 +144,6 @@ export function AutomaticRules() {
       return goal?.name || "Meta desconhecida"
     }
     return "Não definido"
-  }
-
-  if (!financeContext || isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">A carregar automações...</p>
-        </div>
-      </div>
-    )
   }
 
   const incomeCategories = categories.filter((c) => c.type === "income")
@@ -392,25 +397,18 @@ export function AutomaticRules() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant={rule.enabled ? "default" : "secondary"}>{rule.executionCount} execuções</Badge>
-                      {updateRule && (
-                        <Switch
-                          checked={rule.enabled}
-                          onCheckedChange={(enabled) => updateRule(rule.id, { enabled })}
-                        />
-                      )}
+                      <Switch checked={rule.enabled} onCheckedChange={(enabled) => updateRule(rule.id, { enabled })} />
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      {deleteRule && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive"
-                          onClick={() => deleteRule(rule.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive"
+                        onClick={() => deleteRule(rule.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                       <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon">
                           <ChevronDown

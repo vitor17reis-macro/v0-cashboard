@@ -57,12 +57,6 @@ const ENTRY_TYPES = [
 export function SavingsView() {
   const { formatAmount } = useCurrency()
   const financeContext = useFinance()
-  const accounts = financeContext?.accounts ?? []
-  const goals = financeContext?.goals ?? []
-  const savingsEntries = financeContext?.savingsEntries ?? []
-  const addSavingsEntry = financeContext?.addSavingsEntry
-  const deleteSavingsEntry = financeContext?.deleteSavingsEntry
-  const isLoading = financeContext?.isLoading ?? true
 
   const [isOpen, setIsOpen] = useState(false)
   const [entryType, setEntryType] = useState<string>("deposit")
@@ -70,10 +64,33 @@ export function SavingsView() {
   const [amount, setAmount] = useState("")
   const [notes, setNotes] = useState("")
 
+  if (!financeContext) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">A carregar poupança...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const { accounts, savingsEntries, addSavingsEntry, deleteSavingsEntry, isLoading } = financeContext
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">A carregar poupança...</p>
+        </div>
+      </div>
+    )
+  }
+
   const savingsAccount = accounts.find((a) => a.type === "savings")
   const totalSavings = savingsAccount?.balance ?? 0
 
-  // Calculate savings by purpose
   const savingsByPurpose = SAVINGS_PURPOSES.map((p) => {
     const entries = savingsEntries.filter((e) => e.purpose === p.value)
     const total = entries.reduce((sum, e) => {
@@ -91,7 +108,6 @@ export function SavingsView() {
     }
   }).filter((p) => p.value > 0)
 
-  // Monthly evolution
   const monthlyData = savingsEntries.reduce(
     (acc, entry) => {
       const month = new Date(entry.date).toLocaleDateString("pt-PT", { month: "short", year: "2-digit" })
@@ -115,7 +131,7 @@ export function SavingsView() {
   )
 
   const handleAddEntry = () => {
-    if (!addSavingsEntry || !purpose || !amount) return
+    if (!purpose || !amount) return
 
     const savingsAcct = accounts.find((a) => a.type === "savings")
     if (!savingsAcct) return
@@ -136,20 +152,8 @@ export function SavingsView() {
     setEntryType("deposit")
   }
 
-  if (!financeContext || isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">A carregar poupança...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-serif font-bold flex items-center gap-2">
@@ -239,7 +243,6 @@ export function SavingsView() {
         </Dialog>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border-cyan-500/20">
           <CardContent className="pt-6">
@@ -284,7 +287,6 @@ export function SavingsView() {
         </Card>
       </div>
 
-      {/* Savings by Purpose */}
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -328,7 +330,6 @@ export function SavingsView() {
           </CardContent>
         </Card>
 
-        {/* Monthly Evolution Chart */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -364,7 +365,6 @@ export function SavingsView() {
         </Card>
       </div>
 
-      {/* Recent Entries */}
       <Card>
         <CardHeader>
           <CardTitle>Últimos Movimentos</CardTitle>
@@ -400,16 +400,14 @@ export function SavingsView() {
                         {entry.type === "withdrawal" ? "-" : "+"}
                         {formatAmount(entry.amount)}
                       </span>
-                      {deleteSavingsEntry && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteSavingsEntry(entry.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => deleteSavingsEntry(entry.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 )
