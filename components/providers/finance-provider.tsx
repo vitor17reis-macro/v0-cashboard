@@ -357,7 +357,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }
 
   const checkAndExecuteRulesWithFreshData = async (transaction: Transaction, freshAccounts: Account[]) => {
-    const currentRules = rulesRef.current
+    let currentRules = [...rulesRef.current]
     const currentGoals = goalsRef.current
     const currentUserId = userIdRef.current
 
@@ -516,34 +516,35 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
           setTransactions((prev) => [newTransaction, ...prev])
 
-          // Update rule execution count
-          const newExecution: RuleExecution = {
-            id: executionId,
-            date: new Date().toISOString(),
-            amount: transferAmount,
-            sourceAccountId: sourceAccount.id,
-            targetAccountId: targetAccount.id,
-            triggerTransactionId: transaction.id,
-            transactionId: newTransactionId,
-          }
-
-          const updatedRules = currentRules.map((r) => {
-            if (r.id === rule.id) {
-              return {
-                ...r,
-                lastExecuted: new Date().toISOString(),
-                executionCount: r.executionCount + 1,
-                executions: [...(r.executions || []), newExecution],
-              }
+          const currentRule = currentRules.find((r) => r.id === rule.id)
+          if (currentRule) {
+            const newExecution: RuleExecution = {
+              id: executionId,
+              date: new Date().toISOString(),
+              amount: transferAmount,
+              sourceAccountId: sourceAccount.id,
+              targetAccountId: targetAccount.id,
+              triggerTransactionId: transaction.id,
+              transactionId: newTransactionId,
             }
-            return r
-          })
 
-          setRules(updatedRules)
-          rulesRef.current = updatedRules
-          localStorage.setItem("cashboard_auto_rules", JSON.stringify(updatedRules))
+            const updatedRule = {
+              ...currentRule,
+              lastExecuted: new Date().toISOString(),
+              executionCount: currentRule.executionCount + 1,
+              executions: [...(currentRule.executions || []), newExecution],
+            }
 
-          console.log("[v0] Rule executed successfully:", rule.name)
+            // Update currentRules for next iteration
+            currentRules = currentRules.map((r) => (r.id === rule.id ? updatedRule : r))
+
+            // Update state and refs
+            setRules(currentRules)
+            rulesRef.current = currentRules
+            localStorage.setItem("cashboard_auto_rules", JSON.stringify(currentRules))
+
+            console.log("[v0] Rule executed successfully:", rule.name, "Count:", updatedRule.executionCount)
+          }
         } else if (rule.action.targetGoalId) {
           const targetGoal = currentGoals.find((g) => g.id === rule.action.targetGoalId)
           if (!targetGoal) {
@@ -628,34 +629,35 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
           setTransactions((prev) => [newTransaction, ...prev])
 
-          // Update rule
-          const newExecution: RuleExecution = {
-            id: executionId,
-            date: new Date().toISOString(),
-            amount: transferAmount,
-            sourceAccountId: sourceAccount.id,
-            targetGoalId: targetGoal.id,
-            triggerTransactionId: transaction.id,
-            transactionId: newTransactionId,
-          }
-
-          const updatedRules = currentRules.map((r) => {
-            if (r.id === rule.id) {
-              return {
-                ...r,
-                lastExecuted: new Date().toISOString(),
-                executionCount: r.executionCount + 1,
-                executions: [...(r.executions || []), newExecution],
-              }
+          const currentRule = currentRules.find((r) => r.id === rule.id)
+          if (currentRule) {
+            const newExecution: RuleExecution = {
+              id: executionId,
+              date: new Date().toISOString(),
+              amount: transferAmount,
+              sourceAccountId: sourceAccount.id,
+              targetGoalId: targetGoal.id,
+              triggerTransactionId: transaction.id,
+              transactionId: newTransactionId,
             }
-            return r
-          })
 
-          setRules(updatedRules)
-          rulesRef.current = updatedRules
-          localStorage.setItem("cashboard_auto_rules", JSON.stringify(updatedRules))
+            const updatedRule = {
+              ...currentRule,
+              lastExecuted: new Date().toISOString(),
+              executionCount: currentRule.executionCount + 1,
+              executions: [...(currentRule.executions || []), newExecution],
+            }
 
-          console.log("[v0] Rule executed successfully:", rule.name)
+            // Update currentRules for next iteration
+            currentRules = currentRules.map((r) => (r.id === rule.id ? updatedRule : r))
+
+            // Update state and refs
+            setRules(currentRules)
+            rulesRef.current = currentRules
+            localStorage.setItem("cashboard_auto_rules", JSON.stringify(currentRules))
+
+            console.log("[v0] Rule executed successfully:", rule.name, "Count:", updatedRule.executionCount)
+          }
         }
       } catch (error) {
         console.error("[v0] Error executing rule:", error)
