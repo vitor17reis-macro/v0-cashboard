@@ -14,7 +14,6 @@ export interface Transaction {
   recurringFrequency?: "monthly" | "weekly" | "yearly"
   nextDueDate?: string
   ruleId?: string
-  sourceAccountId?: string
 }
 
 export interface Account {
@@ -99,15 +98,14 @@ export const DEFAULT_ACCOUNTS = [
 
 export interface RuleExecution {
   id: string
-  ruleId: string
   date: string
-  triggerTransactionId: string
-  triggerDescription: string
   amount: number
   sourceAccountId: string
   targetAccountId?: string
   targetGoalId?: string
-  status: "executed" | "reversed"
+  triggerTransactionId: string
+  transactionId: string
+  reversed?: boolean
   reversedAt?: string
 }
 

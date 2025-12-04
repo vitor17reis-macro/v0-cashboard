@@ -1,61 +1,55 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 
-type Currency = "EUR" | "USD" | "GBP" | "BRL"
+export type Currency = "EUR" | "USD" | "GBP" | "BRL"
 
 interface CurrencyContextType {
   currency: Currency
   setCurrency: (currency: Currency) => void
   formatCurrency: (amount: number) => string
-  currencySymbol: string
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined)
 
-const currencyConfig: Record<Currency, { symbol: string; locale: string }> = {
-  EUR: { symbol: "€", locale: "pt-PT" },
-  USD: { symbol: "$", locale: "en-US" },
-  GBP: { symbol: "£", locale: "en-GB" },
-  BRL: { symbol: "R$", locale: "pt-BR" },
+const currencyConfig: Record<Currency, { locale: string; currency: string; symbol: string }> = {
+  EUR: { locale: "pt-PT", currency: "EUR", symbol: "€" },
+  USD: { locale: "en-US", currency: "USD", symbol: "$" },
+  GBP: { locale: "en-GB", currency: "GBP", symbol: "£" },
+  BRL: { locale: "pt-BR", currency: "BRL", symbol: "R$" },
 }
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [currency, setCurrency] = useState<Currency>("EUR")
 
-  const formatCurrency = useCallback(
-    (amount: number) => {
-      const config = currencyConfig[currency]
-      return new Intl.NumberFormat(config.locale, {
-        style: "currency",
-        currency: currency,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(amount)
-    },
-    [currency],
-  )
-
-  const currencySymbol = currencyConfig[currency].symbol
+  const formatCurrency = (amount: number): string => {
+    const config = currencyConfig[currency]
+    return new Intl.NumberFormat(config.locale, {
+      style: "currency",
+      currency: config.currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  }
 
   return (
-    <CurrencyContext.Provider
-      value={{
-        currency,
-        setCurrency,
-        formatCurrency,
-        currencySymbol,
-      }}
-    >
-      {children}
-    </CurrencyContext.Provider>
+    <CurrencyContext.Provider value={{ currency, setCurrency, formatCurrency }}>{children}</CurrencyContext.Provider>
   )
 }
 
-export function useCurrency() {
+export function useCurrency(): CurrencyContextType {
   const context = useContext(CurrencyContext)
   if (!context) {
-    throw new Error("useCurrency must be used within a CurrencyProvider")
+    // Return default values if used outside provider
+    return {
+      currency: "EUR" as Currency,
+      setCurrency: () => {},
+      formatCurrency: (amount: number) =>
+        new Intl.NumberFormat("pt-PT", {
+          style: "currency",
+          currency: "EUR",
+        }).format(amount),
+    }
   }
   return context
 }

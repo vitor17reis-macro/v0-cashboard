@@ -239,9 +239,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             goalId: t.goal_id,
             isRecurring: t.is_recurring || false,
             recurringFrequency: t.recurring_interval as "monthly" | "weekly" | "yearly" | undefined,
-            ruleId: t.rule_id,
-            sourceAccountId: t.source_account_id,
-            toAccountId: t.to_account_id,
+            ruleId: t.rule_id || null,
+            toAccountId: t.to_account_id || null,
           })),
         )
       }
@@ -349,9 +348,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         goalId: data.goal_id,
         isRecurring: data.is_recurring,
         recurringFrequency: data.recurring_interval,
-        ruleId: transaction.ruleId,
-        sourceAccountId: transaction.sourceAccountId,
-        toAccountId: transaction.toAccountId,
+        ruleId: data.rule_id || null,
+        toAccountId: data.to_account_id || null,
       }
 
       setTransactions((prev) => [newTransaction, ...prev])
@@ -402,64 +400,37 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const isAutomatedTransaction =
+      const isAutomationTransaction =
         transaction.ruleId ||
-        transaction.description?.includes("Automação:") ||
+        transaction.description?.startsWith("Automação:") ||
         transaction.category === "Transferência Automática" ||
         transaction.category === "Poupança Automática"
 
-      if (isAutomatedTransaction) {
-        // Find the source account (where money was taken from)
-        const sourceAccountId = transaction.sourceAccountId || transaction.accountId
-        const sourceAccount = sourceAccountId ? accounts.find((a) => a.id === sourceAccountId) : null
+      if (isAutomationTransaction) {
+        const sourceAccount = accounts.find((a) => a.id === transaction.accountId)
 
-        // Find the destination (account or goal)
-        let destinationAccount = null
-        let destinationGoal = null
-
-        if (transaction.toAccountId) {
-          destinationAccount = accounts.find((a) => a.id === transaction.toAccountId)
-        } else if (transaction.goalId) {
-          destinationGoal = goals.find((g) => g.id === transaction.goalId)
-        } else {
-          // Parse from description format: "Automação: RuleName (X% de Description)"
-          // Or from transfer format: "Transferência: Source → Destination"
-          const transferMatch = transaction.description?.match(/Transferência: (.+) → (.+)/)
-          if (transferMatch) {
-            const destName = transferMatch[2]
-            destinationAccount = accounts.find((a) => a.name === destName)
-            if (!destinationAccount) {
-              destinationGoal = goals.find((g) => g.name === destName)
-            }
+        if (transaction.type === "transfer" && transaction.toAccountId) {
+          const targetAccount = accounts.find((a) => a.id === transaction.toAccountId)
+          if (sourceAccount && targetAccount) {
+            await updateAccount(sourceAccount.id, { balance: sourceAccount.balance + transaction.amount })
+            await updateAccount(targetAccount.id, { balance: targetAccount.balance - transaction.amount })
           }
-        }
-
-        // Reverse the balances
-        if (sourceAccount) {
-          // Add money back to source account
-          await updateAccount(sourceAccount.id, { balance: sourceAccount.balance + transaction.amount })
-        }
-
-        if (destinationAccount) {
-          // Remove money from destination account
-          await updateAccount(destinationAccount.id, { balance: destinationAccount.balance - transaction.amount })
-        } else if (destinationGoal) {
-          // Remove money from destination goal
-          const newAmount = Math.max(0, destinationGoal.currentAmount - transaction.amount)
-          await updateGoal(destinationGoal.id, { currentAmount: newAmount })
+        } else if (transaction.type === "savings" && transaction.goalId) {
+          const targetGoal = goals.find((g) => g.id === transaction.goalId)
+          if (sourceAccount && targetGoal) {
+            await updateAccount(sourceAccount.id, { balance: sourceAccount.balance + transaction.amount })
+            await updateGoal(targetGoal.id, { currentAmount: targetGoal.currentAmount - transaction.amount })
+          }
         }
 
         if (transaction.ruleId) {
           const rule = rules.find((r) => r.id === transaction.ruleId)
-          if (rule && rule.executionCount > 0) {
-            // Update rule to decrement execution count and mark execution as reversed
+          if (rule) {
             const updatedExecutions = (rule.executions || []).map((exec) =>
-              exec.triggerTransactionId === id || exec.id === id
-                ? { ...exec, status: "reversed" as const, reversedAt: new Date().toISOString() }
-                : exec,
+              exec.transactionId === id ? { ...exec, reversed: true, reversedAt: new Date().toISOString() } : exec,
             )
             updateRuleFunc(transaction.ruleId, {
-              executionCount: rule.executionCount - 1,
+              executionCount: Math.max(0, rule.executionCount - 1),
               executions: updatedExecutions,
             })
           }
@@ -479,38 +450,30 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           }
         }
       } else if (transaction.accountId) {
-        // Regular transaction reversal
         const account = accounts.find((a) => a.id === transaction.accountId)
         if (account) {
           let newBalance = account.balance
 
           if (transaction.type === "income") {
             newBalance -= transaction.amount
-          } else {
+          } else if (transaction.type === "expense") {
             newBalance += transaction.amount
+          } else if (transaction.type === "savings" && transaction.goalId) {
+            newBalance += transaction.amount
+            const goal = goals.find((g) => g.id === transaction.goalId)
+            if (goal) {
+              await updateGoal(goal.id, { currentAmount: goal.currentAmount - transaction.amount })
+            }
           }
 
-          await updateAccount(transaction.accountId, { balance: newBalance })
+          await updateAccount(account.id, { balance: newBalance })
         }
       }
 
-      // If this was a goal deposit, update the goal
-      if (transaction.goalId && (transaction.type === "savings" || transaction.type === "transfer")) {
-        const goal = goals.find((g) => g.id === transaction.goalId)
-        if (goal) {
-          const newCurrentAmount = Math.max(0, goal.currentAmount - transaction.amount)
-          await updateGoal(transaction.goalId, { currentAmount: newCurrentAmount })
-        }
-      }
-
-      // Delete the transaction
-      const { error } = await supabase.from("transactions").delete().eq("id", id)
-      if (error) throw error
-
+      await supabase.from("transactions").delete().eq("id", id)
       setTransactions((prev) => prev.filter((t) => t.id !== id))
     } catch (error) {
-      console.error("[v0] Failed to reverse transaction:", error)
-      throw error
+      console.error("[v0] Error reversing transaction:", error)
     }
   }
 
@@ -774,7 +737,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       ...rule,
       id: crypto.randomUUID(),
       executionCount: 0,
-      executions: [],
     }
     setRules((prev) => [...prev, newRule])
   }, [])
@@ -796,7 +758,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const rule = currentRules.find((r) => r.id === ruleId)
       if (!rule || !rule.enabled) return
 
-      // Find matching transactions from last 30 days
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -819,7 +780,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
       if (matchingTransactions.length === 0) return
 
-      // Calculate total amount to transfer
       let totalAmount = 0
       for (const t of matchingTransactions) {
         if (rule.action.type === "transfer_percentage" && rule.action.percentage) {
@@ -831,29 +791,113 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
       if (totalAmount <= 0) return
 
-      // Execute the transfer
       const sourceAccount = currentAccounts.find((a) => a.type === "checking")
       if (!sourceAccount || sourceAccount.balance < totalAmount) return
+
+      const newTransactionId = crypto.randomUUID()
+      const executionId = crypto.randomUUID()
 
       if (rule.action.targetAccountId) {
         const targetAccount = currentAccounts.find((a) => a.id === rule.action.targetAccountId)
         if (targetAccount) {
           await updateAccount(sourceAccount.id, { balance: sourceAccount.balance - totalAmount })
           await updateAccount(targetAccount.id, { balance: targetAccount.balance + totalAmount })
+
+          await supabase.from("transactions").insert({
+            id: newTransactionId,
+            user_id: userIdRef.current,
+            account_id: sourceAccount.id,
+            to_account_id: targetAccount.id,
+            amount: totalAmount,
+            type: "transfer",
+            category: "Transferência Automática",
+            description: `Automação: ${rule.name} (${rule.action.percentage}% de ${matchingTransactions[0].description})`,
+            date: new Date().toISOString().split("T")[0],
+            rule_id: rule.id,
+          })
+
+          setTransactions((prev) => [
+            {
+              id: newTransactionId,
+              date: new Date().toISOString().split("T")[0],
+              description: `Automação: ${rule.name} (${rule.action.percentage}% de ${matchingTransactions[0].description})`,
+              amount: totalAmount,
+              type: "transfer",
+              category: "Transferência Automática",
+              accountId: sourceAccount.id,
+              toAccountId: targetAccount.id,
+              ruleId: rule.id,
+            },
+            ...prev,
+          ])
+
+          const newExecution: RuleExecution = {
+            id: executionId,
+            date: new Date().toISOString(),
+            amount: totalAmount,
+            sourceAccountId: sourceAccount.id,
+            targetAccountId: targetAccount.id,
+            triggerTransactionId: matchingTransactions[0].id,
+            transactionId: newTransactionId,
+          }
+
+          updateRuleFunc(rule.id, {
+            lastExecuted: new Date().toISOString(),
+            executionCount: rule.executionCount + 1,
+            executions: [...(rule.executions || []), newExecution],
+          })
         }
       } else if (rule.action.targetGoalId) {
         const targetGoal = currentGoals.find((g) => g.id === rule.action.targetGoalId)
         if (targetGoal) {
           await updateAccount(sourceAccount.id, { balance: sourceAccount.balance - totalAmount })
           await updateGoal(targetGoal.id, { currentAmount: targetGoal.currentAmount + totalAmount })
+
+          await supabase.from("transactions").insert({
+            id: newTransactionId,
+            user_id: userIdRef.current,
+            account_id: sourceAccount.id,
+            goal_id: targetGoal.id,
+            amount: totalAmount,
+            type: "savings",
+            category: "Poupança Automática",
+            description: `Automação: ${rule.name} (${rule.action.percentage}% de ${matchingTransactions[0].description})`,
+            date: new Date().toISOString().split("T")[0],
+            rule_id: rule.id,
+          })
+
+          setTransactions((prev) => [
+            {
+              id: newTransactionId,
+              date: new Date().toISOString().split("T")[0],
+              description: `Automação: ${rule.name} (${rule.action.percentage}% de ${matchingTransactions[0].description})`,
+              amount: totalAmount,
+              type: "savings",
+              category: "Poupança Automática",
+              accountId: sourceAccount.id,
+              goalId: targetGoal.id,
+              ruleId: rule.id,
+            },
+            ...prev,
+          ])
+
+          const newExecution: RuleExecution = {
+            id: executionId,
+            date: new Date().toISOString(),
+            amount: totalAmount,
+            sourceAccountId: sourceAccount.id,
+            targetGoalId: targetGoal.id,
+            triggerTransactionId: matchingTransactions[0].id,
+            transactionId: newTransactionId,
+          }
+
+          updateRuleFunc(rule.id, {
+            lastExecuted: new Date().toISOString(),
+            executionCount: rule.executionCount + 1,
+            executions: [...(rule.executions || []), newExecution],
+          })
         }
       }
-
-      // Update rule execution count
-      updateRuleFunc(ruleId, {
-        lastExecuted: new Date().toISOString(),
-        executionCount: rule.executionCount + 1,
-      })
     },
     [transactions, updateAccount, updateGoal, updateRuleFunc, supabase],
   )
@@ -892,7 +936,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
         if (!matches) continue
 
-        // Calculate transfer amount
         let transferAmount = 0
         if (rule.action.type === "transfer_percentage" && rule.action.percentage) {
           transferAmount = (transaction.amount * rule.action.percentage) / 100
@@ -904,44 +947,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
         if (transferAmount <= 0) continue
 
-        // Find source account
         const sourceAccount = currentAccounts.find((a) => a.id === transaction.accountId)
         if (!sourceAccount || sourceAccount.balance < transferAmount) continue
 
+        const newTransactionId = crypto.randomUUID()
         const executionId = crypto.randomUUID()
-        const executionRecord: RuleExecution = {
-          id: executionId,
-          ruleId: rule.id,
-          date: new Date().toISOString(),
-          triggerTransactionId: transaction.id,
-          triggerDescription: transaction.description || "",
-          amount: transferAmount,
-          sourceAccountId: sourceAccount.id,
-          targetAccountId: rule.action.targetAccountId,
-          targetGoalId: rule.action.targetGoalId,
-          status: "executed",
-        }
 
-        // Execute transfer to target account or goal
         if (rule.action.targetAccountId) {
           const targetAccount = currentAccounts.find((a) => a.id === rule.action.targetAccountId)
           if (targetAccount) {
             await updateAccount(sourceAccount.id, { balance: sourceAccount.balance - transferAmount })
             await updateAccount(targetAccount.id, { balance: targetAccount.balance + transferAmount })
 
-            const newTransactionId = crypto.randomUUID()
             await supabase.from("transactions").insert({
               id: newTransactionId,
               user_id: currentUserId,
               account_id: sourceAccount.id,
+              to_account_id: targetAccount.id,
               amount: transferAmount,
               type: "transfer",
               category: "Transferência Automática",
               description: `Automação: ${rule.name} (${rule.action.percentage}% de ${transaction.description})`,
               date: new Date().toISOString().split("T")[0],
               rule_id: rule.id,
-              source_account_id: sourceAccount.id,
-              to_account_id: targetAccount.id,
             })
 
             setTransactions((prev) => [
@@ -954,16 +982,25 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 category: "Transferência Automática",
                 accountId: sourceAccount.id,
                 toAccountId: targetAccount.id,
-                sourceAccountId: sourceAccount.id,
                 ruleId: rule.id,
               },
               ...prev,
             ])
 
+            const newExecution: RuleExecution = {
+              id: executionId,
+              date: new Date().toISOString(),
+              amount: transferAmount,
+              sourceAccountId: sourceAccount.id,
+              targetAccountId: targetAccount.id,
+              triggerTransactionId: transaction.id,
+              transactionId: newTransactionId,
+            }
+
             updateRuleFunc(rule.id, {
               lastExecuted: new Date().toISOString(),
               executionCount: rule.executionCount + 1,
-              executions: [...(rule.executions || []), executionRecord],
+              executions: [...(rule.executions || []), newExecution],
             })
           }
         } else if (rule.action.targetGoalId) {
@@ -972,7 +1009,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             await updateAccount(sourceAccount.id, { balance: sourceAccount.balance - transferAmount })
             await updateGoal(targetGoal.id, { currentAmount: targetGoal.currentAmount + transferAmount })
 
-            const newTransactionId = crypto.randomUUID()
             await supabase.from("transactions").insert({
               id: newTransactionId,
               user_id: currentUserId,
@@ -984,7 +1020,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               description: `Automação: ${rule.name} (${rule.action.percentage}% de ${transaction.description})`,
               date: new Date().toISOString().split("T")[0],
               rule_id: rule.id,
-              source_account_id: sourceAccount.id,
             })
 
             setTransactions((prev) => [
@@ -997,22 +1032,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 category: "Poupança Automática",
                 accountId: sourceAccount.id,
                 goalId: targetGoal.id,
-                sourceAccountId: sourceAccount.id,
                 ruleId: rule.id,
               },
               ...prev,
             ])
 
+            const newExecution: RuleExecution = {
+              id: executionId,
+              date: new Date().toISOString(),
+              amount: transferAmount,
+              sourceAccountId: sourceAccount.id,
+              targetGoalId: targetGoal.id,
+              triggerTransactionId: transaction.id,
+              transactionId: newTransactionId,
+            }
+
             updateRuleFunc(rule.id, {
               lastExecuted: new Date().toISOString(),
               executionCount: rule.executionCount + 1,
-              executions: [...(rule.executions || []), executionRecord],
+              executions: [...(rule.executions || []), newExecution],
             })
           }
         }
       }
     },
-    [transactions, updateAccount, updateGoal, updateRuleFunc, supabase],
+    [updateAccount, updateGoal, updateRuleFunc, supabase],
   )
 
   return (
@@ -1057,5 +1101,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
 export function useFinance() {
   const context = useContext(FinanceContext)
-  return context ?? null
+  if (!context) {
+    throw new Error("useFinance must be used within a FinanceProvider")
+  }
+  return context
 }

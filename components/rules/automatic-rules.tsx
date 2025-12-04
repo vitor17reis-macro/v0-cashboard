@@ -17,8 +17,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useFinance } from "@/components/providers/finance-provider"
 import { useCurrency } from "@/components/providers/currency-provider"
 import {
@@ -33,25 +33,20 @@ import {
   ChevronDown,
   History,
   RotateCcw,
-  ArrowDownRight,
-  TrendingUp,
-  Loader2,
 } from "lucide-react"
-import type { AutoRule, RuleExecution } from "@/lib/types"
+import type { AutoRule } from "@/lib/types"
 
 export function AutomaticRules() {
   const financeContext = useFinance()
-  const currencyContext = useCurrency()
+  const { formatCurrency } = useCurrency()
 
-  const formatCurrency = currencyContext?.formatCurrency ?? ((v: number) => `€${v.toFixed(2)}`)
-  const accounts = financeContext?.accounts ?? []
-  const goals = financeContext?.goals ?? []
-  const categories = financeContext?.categories ?? []
-  const rules = financeContext?.rules ?? []
+  const accounts = financeContext?.accounts || []
+  const goals = financeContext?.goals || []
+  const categories = financeContext?.categories || []
+  const rules = financeContext?.rules || []
   const addRule = financeContext?.addRule
   const updateRule = financeContext?.updateRule
   const deleteRule = financeContext?.deleteRule
-  const isLoading = financeContext?.isLoading ?? true
 
   const [isOpen, setIsOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
@@ -67,27 +62,6 @@ export function AutomaticRules() {
   const [fixedAmount, setFixedAmount] = useState("")
   const [targetAccountId, setTargetAccountId] = useState("")
   const [targetGoalId, setTargetGoalId] = useState("")
-
-  if (!financeContext || isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-amber-500" />
-          <p className="text-muted-foreground">A carregar automações...</p>
-        </div>
-      </div>
-    )
-  }
-
-  const toggleRuleExpanded = (ruleId: string) => {
-    const newExpanded = new Set(expandedRules)
-    if (newExpanded.has(ruleId)) {
-      newExpanded.delete(ruleId)
-    } else {
-      newExpanded.add(ruleId)
-    }
-    setExpandedRules(newExpanded)
-  }
 
   const resetForm = () => {
     setName("")
@@ -161,6 +135,18 @@ export function AutomaticRules() {
     }
   }
 
+  const toggleRuleExpanded = (ruleId: string) => {
+    setExpandedRules((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(ruleId)) {
+        newSet.delete(ruleId)
+      } else {
+        newSet.add(ruleId)
+      }
+      return newSet
+    })
+  }
+
   const getTriggerLabel = (trigger: AutoRule["trigger"]) => {
     switch (trigger.type) {
       case "income_received":
@@ -195,27 +181,22 @@ export function AutomaticRules() {
     }
   }
 
-  const getTargetName = (execution: RuleExecution) => {
-    if (execution.targetAccountId) {
-      return accounts.find((a) => a.id === execution.targetAccountId)?.name || "Conta"
-    }
-    if (execution.targetGoalId) {
-      return goals.find((g) => g.id === execution.targetGoalId)?.name || "Meta"
-    }
-    return "Desconhecido"
+  const getAccountName = (accountId: string) => {
+    return accounts.find((a) => a.id === accountId)?.name || "Conta desconhecida"
   }
 
-  const getSourceName = (execution: RuleExecution) => {
-    return accounts.find((a) => a.id === execution.sourceAccountId)?.name || "Conta"
+  const getGoalName = (goalId: string) => {
+    return goals.find((g) => g.id === goalId)?.name || "Meta desconhecida"
   }
 
   // Calculate stats
+  const totalRules = rules.length
+  const activeRules = rules.filter((r) => r.enabled).length
   const totalExecutions = rules.reduce((sum, r) => sum + (r.executionCount || 0), 0)
-  const totalAutomated = rules.reduce((sum, r) => {
-    const executions = r.executions || []
-    return sum + executions.filter((e) => e.status === "executed").reduce((s, e) => s + e.amount, 0)
-  }, 0)
-  const activeRulesCount = rules.filter((r) => r.enabled).length
+  const totalAutomated = rules.reduce(
+    (sum, r) => sum + (r.executions || []).filter((e) => !e.reversed).reduce((s, e) => s + e.amount, 0),
+    0,
+  )
 
   return (
     <div className="space-y-6">
@@ -223,8 +204,8 @@ export function AutomaticRules() {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Automações</h1>
           <p className="text-muted-foreground mt-1">
-            Crie regras para automatizar transferências. As regras executam automaticamente quando uma transação
-            correspondente é registada.
+            Crie regras para automatizar transferências e categorizações. As regras são executadas automaticamente
+            quando uma transação correspondente é registada.
           </p>
         </div>
         <Dialog
@@ -249,7 +230,7 @@ export function AutomaticRules() {
               <DialogDescription>
                 {editingRule
                   ? "Modifique as configurações da regra de automação."
-                  : "Configure uma regra que será executada automaticamente."}
+                  : "Configure uma regra que será executada automaticamente quando uma transação correspondente for registada."}
               </DialogDescription>
             </DialogHeader>
 
@@ -416,46 +397,57 @@ export function AutomaticRules() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-amber-200 dark:border-amber-800">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 border-amber-200 dark:border-amber-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/20">
                 <Zap className="h-5 w-5 text-amber-600" />
               </div>
               <div>
-                <p className="text-sm text-amber-700 dark:text-amber-300">Regras Ativas</p>
-                <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">{activeRulesCount}</p>
+                <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{totalRules}</p>
+                <p className="text-xs text-amber-600/80">Total de Regras</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border-emerald-200 dark:border-emerald-800">
+        <Card className="bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/20 dark:to-green-950/20 border-emerald-200 dark:border-emerald-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-emerald-500/20">
-                <TrendingUp className="h-5 w-5 text-emerald-600" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-sm text-emerald-700 dark:text-emerald-300">Total Automatizado</p>
-                <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                  {formatCurrency(totalAutomated)}
-                </p>
+                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{activeRules}</p>
+                <p className="text-xs text-emerald-600/80">Regras Ativas</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800">
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-blue-200 dark:border-blue-800">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-500/20">
                 <History className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-blue-700 dark:text-blue-300">Execuções Totais</p>
-                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{totalExecutions}</p>
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{totalExecutions}</p>
+                <p className="text-xs text-blue-600/80">Execuções</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-950/20 dark:to-violet-950/20 border-purple-200 dark:border-purple-800">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/20">
+                <Sparkles className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                  {formatCurrency(totalAutomated)}
+                </p>
+                <p className="text-xs text-purple-600/80">Total Automatizado</p>
               </div>
             </div>
           </CardContent>
@@ -472,8 +464,8 @@ export function AutomaticRules() {
               <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
                 Quando regista uma transação que corresponde a uma regra ativa, a automação é executada automaticamente.
                 Por exemplo: se criar uma regra "Quando receber Salário, transferir 10% para Poupança", ao registar uma
-                receita com "Salário" na descrição ou categoria, 10% será automaticamente transferido. Se reverter a
-                transação no histórico, o valor volta à conta de origem.
+                receita com "Salário" na descrição ou categoria, 10% será automaticamente transferido para a conta de
+                poupança.
               </p>
             </div>
           </div>
@@ -481,7 +473,7 @@ export function AutomaticRules() {
       </Card>
 
       {/* Rules List */}
-      <div className="space-y-4">
+      <div className="grid gap-4">
         {rules.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="py-12 text-center">
@@ -495,137 +487,168 @@ export function AutomaticRules() {
             </CardContent>
           </Card>
         ) : (
-          rules.map((rule) => {
-            const ruleExecutions = rule.executions || []
-            return (
-              <Collapsible
-                key={rule.id}
-                open={expandedRules.has(rule.id)}
-                onOpenChange={() => toggleRuleExpanded(rule.id)}
+          rules.map((rule) => (
+            <Collapsible
+              key={rule.id}
+              open={expandedRules.has(rule.id)}
+              onOpenChange={() => toggleRuleExpanded(rule.id)}
+            >
+              <Card
+                className={`transition-all duration-300 ${
+                  rule.enabled ? "border-amber-200 dark:border-amber-800 shadow-md" : "opacity-60 border-muted"
+                }`}
               >
-                <Card
-                  className={`transition-all duration-300 ${
-                    rule.enabled ? "border-amber-200 dark:border-amber-800 shadow-md" : "opacity-60 border-muted"
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div
-                            className={`p-2 rounded-lg ${
-                              rule.enabled ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-muted"
-                            }`}
-                          >
-                            <Zap className={`h-4 w-4 ${rule.enabled ? "text-white" : "text-muted-foreground"}`} />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-foreground">{rule.name}</h3>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              {rule.enabled ? (
-                                <Badge
-                                  variant="secondary"
-                                  className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                                >
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Ativa
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="bg-muted text-muted-foreground">
-                                  <Clock className="h-3 w-3 mr-1" />
-                                  Pausada
-                                </Badge>
-                              )}
-                              <Badge variant="outline" className="text-xs">
-                                {rule.executionCount || 0} execuções
-                              </Badge>
-                            </div>
-                          </div>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div
+                          className={`p-2 rounded-lg ${
+                            rule.enabled ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-muted"
+                          }`}
+                        >
+                          <Zap className={`h-4 w-4 ${rule.enabled ? "text-white" : "text-muted-foreground"}`} />
                         </div>
-
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-3 bg-muted/50 rounded-lg p-2">
-                          <span className="font-medium">{getTriggerLabel(rule.trigger)}</span>
-                          <ArrowRight className="h-4 w-4 text-amber-500" />
-                          <span className="font-medium">{getActionLabel(rule.action)}</span>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{rule.name}</h3>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {rule.enabled ? (
+                              <Badge
+                                variant="secondary"
+                                className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                              >
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Ativa
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                                Inativa
+                              </Badge>
+                            )}
+                            {rule.executionCount && rule.executionCount > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                {rule.executionCount}x executada
+                              </Badge>
+                            )}
+                            {rule.lastExecuted && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {new Date(rule.lastExecuted).toLocaleDateString("pt-PT")}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={rule.enabled}
-                          onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteRule(rule.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mt-3">
+                        <span className="font-medium">{getTriggerLabel(rule.trigger)}</span>
+                        <ArrowRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                        <span className="font-medium">{getActionLabel(rule.action)}</span>
                       </div>
                     </div>
 
-                    {/* Execution History Toggle */}
-                    {ruleExecutions.length > 0 && (
-                      <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="sm" className="w-full mt-3 gap-2">
-                          <History className="h-4 w-4" />
-                          Ver Histórico ({ruleExecutions.length})
-                          <ChevronDown
-                            className={`h-4 w-4 transition-transform ${expandedRules.has(rule.id) ? "rotate-180" : ""}`}
-                          />
-                        </Button>
-                      </CollapsibleTrigger>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={rule.enabled}
+                        onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
+                      />
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)} className="h-8 w-8">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteRule(rule.id)}
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      {rule.executions && rule.executions.length > 0 && (
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <ChevronDown
+                              className={`h-4 w-4 transition-transform ${expandedRules.has(rule.id) ? "rotate-180" : ""}`}
+                            />
+                          </Button>
+                        </CollapsibleTrigger>
+                      )}
+                    </div>
+                  </div>
 
-                    <CollapsibleContent>
-                      <ScrollArea className="h-[200px] mt-3 rounded-lg border p-3">
-                        <div className="space-y-2">
-                          {ruleExecutions.map((execution, idx) => (
-                            <div
-                              key={idx}
-                              className={`flex items-center justify-between p-2 rounded-lg text-sm ${
-                                execution.status === "reversed"
-                                  ? "bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800"
-                                  : "bg-muted/50"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                {execution.status === "reversed" ? (
-                                  <RotateCcw className="h-4 w-4 text-orange-500" />
-                                ) : (
-                                  <ArrowDownRight className="h-4 w-4 text-emerald-500" />
-                                )}
-                                <div>
-                                  <span className="font-medium">{formatCurrency(execution.amount)}</span>
-                                  <span className="text-muted-foreground mx-1">→</span>
-                                  <span>{getTargetName(execution)}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {execution.status === "reversed" && (
-                                  <Badge variant="outline" className="text-orange-600 border-orange-300">
-                                    Revertida
-                                  </Badge>
-                                )}
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(execution.executedAt).toLocaleDateString("pt-PT")}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
+                  <CollapsibleContent>
+                    {rule.executions && rule.executions.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-border">
+                        <div className="flex items-center gap-2 mb-3">
+                          <History className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Histórico de Execuções</span>
                         </div>
-                      </ScrollArea>
-                    </CollapsibleContent>
-                  </CardContent>
-                </Card>
-              </Collapsible>
-            )
-          })
+                        <ScrollArea className="h-[200px]">
+                          <div className="space-y-2">
+                            {rule.executions
+                              .slice()
+                              .reverse()
+                              .map((execution) => (
+                                <div
+                                  key={execution.id}
+                                  className={`p-3 rounded-lg border ${
+                                    execution.reversed
+                                      ? "bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800"
+                                      : "bg-muted/50 border-transparent"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">
+                                        {new Date(execution.date).toLocaleDateString("pt-PT", {
+                                          day: "2-digit",
+                                          month: "short",
+                                          year: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </span>
+                                      {execution.reversed && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          <RotateCcw className="h-3 w-3 mr-1" />
+                                          Revertida
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <span
+                                      className={`font-semibold ${
+                                        execution.reversed ? "text-red-600 line-through" : "text-emerald-600"
+                                      }`}
+                                    >
+                                      {formatCurrency(execution.amount)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                    <span>{getAccountName(execution.sourceAccountId)}</span>
+                                    <ArrowRight className="h-3 w-3" />
+                                    <span>
+                                      {execution.targetAccountId
+                                        ? getAccountName(execution.targetAccountId)
+                                        : execution.targetGoalId
+                                          ? getGoalName(execution.targetGoalId)
+                                          : "Desconhecido"}
+                                    </span>
+                                  </div>
+                                  {execution.reversed && execution.reversedAt && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                      Revertida em {new Date(execution.reversedAt).toLocaleDateString("pt-PT")}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </CardContent>
+              </Card>
+            </Collapsible>
+          ))
         )}
       </div>
     </div>
