@@ -3,28 +3,37 @@
 import type React from "react"
 import { useState, useRef, useEffect, useMemo } from "react"
 import { useChat } from "@ai-sdk/react"
-import { DefaultChatTransport } from "ai"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
 import {
   SendIcon,
   XIcon,
   Sparkles,
   UserIcon,
-  Wallet,
   TrendingUp,
   GraduationCap,
   Calculator,
   HelpCircle,
   Database,
-  Bot,
   Loader2,
+  ChevronDown,
+  PiggyBank,
+  BookOpen,
+  Shield,
+  Target,
 } from "lucide-react"
 import { useCurrency } from "@/components/providers/currency-provider"
 import { cn } from "@/lib/utils"
 import { useFinance } from "@/components/providers/finance-provider"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu"
 
 interface FinanceContextData {
   userId: string | null
@@ -39,50 +48,65 @@ interface MultiAgentChatbotProps {
   onClose?: () => void
 }
 
-const AGENT_INFO = {
-  sql: {
-    name: "SQL Agent",
+const AGENTS = [
+  {
+    id: "auto",
+    name: "Automático",
+    icon: Sparkles,
+    color: "from-violet-500 to-purple-600",
+    bgColor: "bg-violet-500",
+    description: "Escolhe o melhor agente",
+  },
+  {
+    id: "sql",
+    name: "Dados",
     icon: Database,
-    color: "text-blue-500",
-    description: "Consultas à base de dados",
+    color: "from-blue-500 to-cyan-600",
+    bgColor: "bg-blue-500",
+    description: "Consulta transações e saldos",
   },
-  finance: {
-    name: "Finance Agent",
+  {
+    id: "finance",
+    name: "Investir",
     icon: TrendingUp,
-    color: "text-green-500",
-    description: "Análise de investimentos",
+    color: "from-emerald-500 to-green-600",
+    bgColor: "bg-emerald-500",
+    description: "Análise e conselhos",
   },
-  education: {
-    name: "Education Agent",
+  {
+    id: "education",
+    name: "Aprender",
     icon: GraduationCap,
-    color: "text-purple-500",
+    color: "from-amber-500 to-orange-600",
+    bgColor: "bg-amber-500",
     description: "Literacia financeira",
   },
-  planner: {
-    name: "Planner Agent",
-    icon: Calculator,
-    color: "text-orange-500",
+  {
+    id: "planner",
+    name: "Planear",
+    icon: Target,
+    color: "from-pink-500 to-rose-600",
+    bgColor: "bg-pink-500",
     description: "Planos financeiros",
   },
-  support: {
-    name: "Support Agent",
+  {
+    id: "support",
+    name: "Ajuda",
     icon: HelpCircle,
-    color: "text-cyan-500",
-    description: "Ajuda com o CashBoard",
+    color: "from-slate-500 to-gray-600",
+    bgColor: "bg-slate-500",
+    description: "Suporte CashBoard",
   },
-  rag: {
-    name: "RAG Agent",
-    icon: Bot,
-    color: "text-pink-500",
-    description: "Pesquisa de informação",
-  },
-  orchestrator: {
-    name: "Orchestrator",
-    icon: Sparkles,
-    color: "text-amber-500",
-    description: "Coordenação de agentes",
-  },
-}
+]
+
+const QUICK_ACTIONS = [
+  { label: "Resumo do mês", query: "Qual é o meu resumo financeiro deste mês?", icon: Calculator },
+  { label: "Onde poupar", query: "Onde posso reduzir despesas?", icon: PiggyBank },
+  { label: "Juros compostos", query: "Explica-me como funcionam os juros compostos", icon: BookOpen },
+  { label: "Plano poupança", query: "Cria um plano para poupar 500€ por mês", icon: Target },
+  { label: "Fundo emergência", query: "Como criar um fundo de emergência?", icon: Shield },
+  { label: "Investir ETFs", query: "Devo investir em ETFs?", icon: TrendingUp },
+]
 
 // Safe finance context hook that doesn't throw
 function useSafeFinance(): FinanceContextData {
@@ -99,21 +123,19 @@ function useSafeFinance(): FinanceContextData {
 
 export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
   const [inputValue, setInputValue] = useState("")
+  const [selectedAgent, setSelectedAgent] = useState("auto")
   const [activeAgent, setActiveAgent] = useState<string>("support")
   const scrollRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
 
   const financeData = useSafeFinance()
-
-  let currency = "EUR"
   const currencyContext = useCurrency()
-  currency = currencyContext?.currency || "EUR"
+  const currency = currencyContext?.currency || "EUR"
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Build context for agents
   const agentContext = useMemo(
     () => ({
       userId: financeData.userId || "",
@@ -124,17 +146,16 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
       rules: financeData.rules,
       currency,
     }),
-    [financeData, currency],
+    [currency],
   )
 
   const { messages, sendMessage, status, error } = useChat({
-    transport: new DefaultChatTransport({
-      api: "/api/agents",
-      body: {
-        userId: agentContext.userId,
-        context: agentContext,
-      },
-    }),
+    api: "/api/agents",
+    body: {
+      userId: agentContext.userId,
+      context: agentContext,
+      selectedAgent,
+    },
     onResponse: (response) => {
       const agentType = response.headers.get("X-Agent-Type")
       if (agentType) {
@@ -154,7 +175,6 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!inputValue.trim() || isLoading) return
-
     sendMessage({ text: inputValue })
     setInputValue("")
   }
@@ -162,39 +182,6 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
   const handleQuickAction = (query: string) => {
     if (isLoading) return
     sendMessage({ text: query })
-  }
-
-  const quickActions = [
-    {
-      icon: <Wallet className="h-4 w-4" />,
-      label: "Saldo",
-      query: "Qual é o meu saldo total e distribuição por contas?",
-    },
-    { icon: <Database className="h-4 w-4" />, label: "Gastos", query: "Quanto gastei este mês por categoria?" },
-    {
-      icon: <TrendingUp className="h-4 w-4" />,
-      label: "Investir",
-      query: "Dá-me conselhos de investimento para o meu perfil",
-    },
-    { icon: <GraduationCap className="h-4 w-4" />, label: "Aprender", query: "Explica-me o que são juros compostos" },
-    {
-      icon: <Calculator className="h-4 w-4" />,
-      label: "Planear",
-      query: "Quero poupar 5000€ em 12 meses, cria um plano",
-    },
-    { icon: <HelpCircle className="h-4 w-4" />, label: "Ajuda", query: "O que posso fazer no CashBoard?" },
-  ]
-
-  const AgentBadge = ({ agentType }: { agentType: string }) => {
-    const agent = AGENT_INFO[agentType as keyof typeof AGENT_INFO] || AGENT_INFO.support
-    const Icon = agent.icon
-
-    return (
-      <Badge variant="outline" className={cn("text-xs gap-1", agent.color)}>
-        <Icon className="h-3 w-3" />
-        {agent.name}
-      </Badge>
-    )
   }
 
   const renderMessageContent = (content: string) => {
@@ -258,6 +245,9 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
     })
   }
 
+  const currentAgent = AGENTS.find((a) => a.id === selectedAgent) || AGENTS[0]
+  const CurrentIcon = currentAgent.icon
+
   if (!mounted) {
     return (
       <div className="flex items-center justify-center h-full bg-background">
@@ -267,165 +257,218 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background" role="dialog" aria-label="Assistente Multi-Agente do CashBoard">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-cyan-500/10">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
-            <Sparkles className="h-5 w-5 text-white" />
+    <div className="flex flex-col h-full bg-background" role="dialog" aria-label="Assistente Multi-Agente">
+      <div className={cn("p-4 text-white bg-gradient-to-r", currentAgent.color)}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold">Assistente IA</h3>
+              <p className="text-xs text-white/80">Sistema Multi-Agente</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold flex items-center gap-2">
-              Assistente IA
-              {activeAgent && <AgentBadge agentType={activeAgent} />}
-            </h3>
-            <p className="text-xs text-muted-foreground">Sistema multi-agente inteligente</p>
-          </div>
+          <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/20 rounded-xl">
+            <XIcon className="h-4 w-4" />
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          aria-label="Fechar assistente"
-          className="rounded-xl hover:bg-destructive/10 hover:text-destructive"
-        >
-          <XIcon className="h-4 w-4" />
-        </Button>
-      </div>
 
-      {/* Agent Selector */}
-      <div className="p-2 border-b bg-muted/30">
-        <div className="flex gap-1 overflow-x-auto pb-1">
-          {Object.entries(AGENT_INFO)
-            .filter(([key]) => key !== "orchestrator")
-            .map(([key, agent]) => {
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="w-full justify-between bg-white/10 hover:bg-white/20 text-white border-0 rounded-xl h-11"
+            >
+              <div className="flex items-center gap-2">
+                <CurrentIcon className="w-4 h-4" />
+                <span className="font-medium">{currentAgent.name}</span>
+                <span className="text-xs text-white/70">- {currentAgent.description}</span>
+              </div>
+              <ChevronDown className="w-4 h-4 opacity-70" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="w-[calc(100%-2rem)]"
+            style={{ width: "var(--radix-dropdown-menu-trigger-width)" }}
+          >
+            <DropdownMenuLabel>Escolhe um Agente</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {AGENTS.map((agent) => {
               const Icon = agent.icon
-              const isActive = activeAgent === key
               return (
-                <Button
-                  key={key}
-                  variant={isActive ? "default" : "ghost"}
-                  size="sm"
+                <DropdownMenuItem
+                  key={agent.id}
+                  onClick={() => setSelectedAgent(agent.id)}
                   className={cn(
-                    "shrink-0 gap-1 rounded-full text-xs h-7",
-                    isActive && "bg-primary text-primary-foreground",
+                    "flex items-center gap-3 p-3 cursor-pointer",
+                    selectedAgent === agent.id && "bg-accent",
                   )}
-                  onClick={() => setActiveAgent(key)}
-                  title={agent.description}
                 >
-                  <Icon className="h-3 w-3" />
-                  <span className="hidden sm:inline">{agent.name.replace(" Agent", "")}</span>
-                </Button>
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center text-white",
+                      agent.color,
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{agent.name}</p>
+                    <p className="text-xs text-muted-foreground">{agent.description}</p>
+                  </div>
+                  {selectedAgent === agent.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                </DropdownMenuItem>
               )
             })}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="p-2 border-b bg-muted/20">
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
-          {quickActions.map((action) => (
-            <Button
-              key={action.label}
-              variant="outline"
-              size="sm"
-              className="shrink-0 gap-1.5 rounded-full text-xs h-7 bg-background hover:bg-primary/10 hover:text-primary hover:border-primary/30"
-              onClick={() => handleQuickAction(action.query)}
-              disabled={isLoading}
-            >
-              {action.icon}
-              {action.label}
-            </Button>
-          ))}
-        </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-hidden">
         <ScrollArea className="h-full p-4" ref={scrollRef as any}>
           <div className="flex flex-col gap-4">
-            {/* Welcome message */}
             {messages.length === 0 && (
-              <div className="flex gap-3">
-                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-md">
-                  <Sparkles className="h-4 w-4 text-white" />
+              <div className="space-y-4">
+                <div className="text-center py-4">
+                  <div
+                    className={cn(
+                      "w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center mx-auto mb-3",
+                      currentAgent.color,
+                    )}
+                  >
+                    <Sparkles className="w-8 h-8 text-white" />
+                  </div>
+                  <h4 className="font-semibold text-lg">Olá! Como posso ajudar?</h4>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Escolhe uma ação rápida ou escreve a tua pergunta
+                  </p>
                 </div>
-                <div className="max-w-[85%] space-y-2">
-                  <div className="rounded-2xl rounded-bl-sm px-4 py-3 bg-secondary/80 text-secondary-foreground border border-border/50">
-                    <p className="text-sm mb-2">
-                      Olá! Sou o assistente inteligente do CashBoard com múltiplos agentes especializados:
-                    </p>
-                    <ul className="text-sm space-y-1 mb-2">
-                      <li>
-                        <strong>SQL Agent</strong> - Consultas sobre os teus dados
-                      </li>
-                      <li>
-                        <strong>Finance Agent</strong> - Análise e conselhos de investimento
-                      </li>
-                      <li>
-                        <strong>Education Agent</strong> - Aprende sobre finanças
-                      </li>
-                      <li>
-                        <strong>Planner Agent</strong> - Cria planos personalizados
-                      </li>
-                      <li>
-                        <strong>Support Agent</strong> - Ajuda com o CashBoard
-                      </li>
-                    </ul>
-                    <p className="text-sm">Pergunta-me o que quiseres!</p>
+
+                {/* Quick Actions Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  {QUICK_ACTIONS.map((action, i) => {
+                    const Icon = action.icon
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => handleQuickAction(action.query)}
+                        disabled={isLoading}
+                        className={cn(
+                          "p-3 rounded-xl text-left transition-all",
+                          "bg-accent/50 hover:bg-accent",
+                          "border border-transparent hover:border-border",
+                          "disabled:opacity-50",
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Icon className="w-3.5 h-3.5 text-primary" />
+                          </div>
+                          <span className="text-xs font-medium">{action.label}</span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Agent List */}
+                <div className="pt-2">
+                  <p className="text-xs text-muted-foreground mb-2 font-medium">Agentes Disponíveis:</p>
+                  <div className="space-y-1">
+                    {AGENTS.filter((a) => a.id !== "auto").map((agent) => {
+                      const Icon = agent.icon
+                      return (
+                        <div
+                          key={agent.id}
+                          className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors"
+                          onClick={() => setSelectedAgent(agent.id)}
+                        >
+                          <div
+                            className={cn(
+                              "w-7 h-7 rounded-lg bg-gradient-to-br flex items-center justify-center text-white",
+                              agent.color,
+                            )}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <p className="text-sm font-medium flex-1">{agent.name}</p>
+                          <p className="text-xs text-muted-foreground">{agent.description}</p>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
             )}
 
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn("flex gap-3", message.role === "user" ? "justify-end" : "justify-start")}
-              >
-                {message.role === "assistant" && (
-                  <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-md">
-                    <Sparkles className="h-4 w-4 text-white" />
-                  </div>
-                )}
-                <div className={cn("max-w-[85%] space-y-2", message.role === "user" ? "items-end" : "items-start")}>
-                  <div
-                    className={cn(
-                      "rounded-2xl px-4 py-3",
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-secondary/80 text-secondary-foreground rounded-bl-sm border border-border/50",
+            {/* Existing messages rendering */}
+            {messages.map((message) => {
+              const agentInfo = AGENTS.find((a) => a.id === activeAgent) || AGENTS[0]
+              return (
+                <div
+                  key={message.id}
+                  className={cn("flex gap-3", message.role === "user" ? "justify-end" : "justify-start")}
+                >
+                  {message.role === "assistant" && (
+                    <div
+                      className={cn(
+                        "h-8 w-8 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0",
+                        agentInfo.color,
+                      )}
+                    >
+                      <agentInfo.icon className="h-4 w-4 text-white" />
+                    </div>
+                  )}
+                  <div className={cn("max-w-[85%]", message.role === "user" ? "items-end" : "items-start")}>
+                    {message.role === "assistant" && (
+                      <p className="text-xs text-muted-foreground mb-1 ml-1">{agentInfo.name}</p>
                     )}
-                  >
-                    <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                      {message.parts?.map((part, index) => {
-                        if (part.type === "text") {
-                          return <div key={index}>{renderMessageContent(part.text)}</div>
-                        }
-                        if (part.type === "tool-invocation") {
-                          return (
-                            <div key={index} className="my-2 p-2 bg-muted/50 rounded-lg text-xs">
-                              <span className="text-muted-foreground">A usar ferramenta: </span>
-                              <code>{part.toolName}</code>
-                            </div>
-                          )
-                        }
-                        return null
-                      }) || (typeof message.content === "string" ? renderMessageContent(message.content) : null)}
+                    <div
+                      className={cn(
+                        "rounded-2xl px-4 py-3",
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground rounded-br-sm"
+                          : "bg-secondary/80 text-secondary-foreground rounded-bl-sm border border-border/50",
+                      )}
+                    >
+                      <div className="text-sm whitespace-pre-wrap leading-relaxed">
+                        {message.parts?.map((part, index) => {
+                          if (part.type === "text") {
+                            return <div key={index}>{renderMessageContent(part.text)}</div>
+                          }
+                          if (part.type === "tool-invocation") {
+                            return (
+                              <div key={index} className="my-2 p-2 bg-muted/50 rounded-lg text-xs">
+                                <span className="text-muted-foreground">A usar: </span>
+                                <code>{part.toolName}</code>
+                              </div>
+                            )
+                          }
+                          return null
+                        }) || (typeof message.content === "string" ? renderMessageContent(message.content) : null)}
+                      </div>
                     </div>
                   </div>
+                  {message.role === "user" && (
+                    <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
+                      <UserIcon className="h-4 w-4 text-primary-foreground" />
+                    </div>
+                  )}
                 </div>
-                {message.role === "user" && (
-                  <div className="h-8 w-8 rounded-xl bg-primary flex items-center justify-center shrink-0">
-                    <UserIcon className="h-4 w-4 text-primary-foreground" />
-                  </div>
-                )}
-              </div>
-            ))}
+              )
+            })}
 
             {isLoading && (
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-md">
+                <div
+                  className={cn(
+                    "h-8 w-8 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0",
+                    currentAgent.color,
+                  )}
+                >
                   <Loader2 className="h-4 w-4 text-white animate-spin" />
                 </div>
                 <div className="bg-secondary/80 rounded-2xl rounded-bl-sm px-4 py-3 border border-border/50">
@@ -472,13 +515,13 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Escreve a tua pergunta..."
             disabled={isLoading}
-            className="flex-1 rounded-full bg-muted/50 border-muted-foreground/20 focus-visible:ring-primary"
+            className="flex-1 rounded-xl bg-accent/50 border-0 focus-visible:ring-1"
           />
           <Button
             type="submit"
             size="icon"
             disabled={!inputValue.trim() || isLoading}
-            className="rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg"
+            className={cn("rounded-xl w-11 h-11 bg-gradient-to-r", currentAgent.color)}
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
           </Button>
