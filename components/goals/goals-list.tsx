@@ -7,7 +7,7 @@ import { useCurrency } from "@/contexts/currency-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
-import { PlusIcon, Target, MoreVertical, Pencil, Trash2, Calendar, ArrowRight } from "lucide-react"
+import { PlusIcon, Target, MoreVertical, Pencil, Trash2, Calendar, ArrowRight, ArrowLeft, Banknote } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { GoalForm } from "./goal-form"
 import { GoalTransferForm } from "./goal-transfer-form"
+import { GoalWithdrawForm } from "./goal-withdraw-form"
 import { differenceInDays, parseISO } from "date-fns"
 
 export function GoalsList() {
@@ -44,6 +45,7 @@ export function GoalsList() {
   const [editingGoal, setEditingGoal] = useState<(typeof goals)[0] | null>(null)
   const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null)
   const [transferGoalId, setTransferGoalId] = useState<string | null>(null)
+  const [withdrawGoalId, setWithdrawGoalId] = useState<string | null>(null)
 
   const handleDelete = () => {
     if (deletingGoalId) {
@@ -95,15 +97,30 @@ export function GoalsList() {
             const percentage = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100)
             const daysRemaining = getDaysRemaining(goal.deadline)
             const isCompleted = percentage >= 100
+            const hasBalance = goal.currentAmount > 0
 
             return (
-              <Card key={goal.id} className="bg-card/50 backdrop-blur-sm border-border/50 group">
+              <Card
+                key={goal.id}
+                className={`bg-card/50 backdrop-blur-sm border-border/50 group ${isCompleted ? "ring-2 ring-emerald-500/50" : ""}`}
+              >
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     {isCompleted && <span className="text-emerald-500">✓</span>}
                     {goal.name}
                   </CardTitle>
                   <div className="flex items-center gap-1">
+                    {hasBalance && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                        onClick={() => setWithdrawGoalId(goal.id)}
+                      >
+                        <ArrowLeft className="h-4 w-4 mr-1" />
+                        <span className="text-xs">Levantar</span>
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -128,6 +145,12 @@ export function GoalsList() {
                           <ArrowRight className="h-4 w-4 mr-2" />
                           Depositar Dinheiro
                         </DropdownMenuItem>
+                        {hasBalance && (
+                          <DropdownMenuItem onClick={() => setWithdrawGoalId(goal.id)}>
+                            <ArrowLeft className="h-4 w-4 mr-2" />
+                            Levantar Dinheiro
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => setEditingGoal(goal)}>
                           <Pencil className="h-4 w-4 mr-2" />
@@ -177,6 +200,14 @@ export function GoalsList() {
                       </span>
                     </div>
                   </div>
+                  {isCompleted && (
+                    <div className="mt-2 p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                        <Banknote className="h-3 w-3" />
+                        Meta atingida! Pode levantar o dinheiro quando quiser.
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )
@@ -195,6 +226,7 @@ export function GoalsList() {
         </DialogContent>
       </Dialog>
 
+      {/* Deposit Dialog */}
       <Dialog open={!!transferGoalId} onOpenChange={(open) => !open && setTransferGoalId(null)}>
         <DialogContent>
           <DialogHeader>
@@ -202,6 +234,16 @@ export function GoalsList() {
             <DialogDescription>Transfira dinheiro de uma das suas contas para esta meta financeira.</DialogDescription>
           </DialogHeader>
           {transferGoalId && <GoalTransferForm goalId={transferGoalId} onSuccess={() => setTransferGoalId(null)} />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!withdrawGoalId} onOpenChange={(open) => !open && setWithdrawGoalId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Levantar da Meta</DialogTitle>
+            <DialogDescription>Transfira dinheiro desta meta para uma das suas contas.</DialogDescription>
+          </DialogHeader>
+          {withdrawGoalId && <GoalWithdrawForm goalId={withdrawGoalId} onSuccess={() => setWithdrawGoalId(null)} />}
         </DialogContent>
       </Dialog>
 
