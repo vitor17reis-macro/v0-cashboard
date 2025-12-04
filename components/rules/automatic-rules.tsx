@@ -35,20 +35,23 @@ import {
   RotateCcw,
   ArrowDownRight,
   TrendingUp,
+  Loader2,
 } from "lucide-react"
 import type { AutoRule, RuleExecution } from "@/lib/types"
 
 export function AutomaticRules() {
   const financeContext = useFinance()
-  const { formatCurrency } = useCurrency()
+  const currencyContext = useCurrency()
 
-  const accounts = financeContext?.accounts || []
-  const goals = financeContext?.goals || []
-  const categories = financeContext?.categories || []
-  const rules = financeContext?.rules || []
+  const formatCurrency = currencyContext?.formatCurrency ?? ((v: number) => `€${v.toFixed(2)}`)
+  const accounts = financeContext?.accounts ?? []
+  const goals = financeContext?.goals ?? []
+  const categories = financeContext?.categories ?? []
+  const rules = financeContext?.rules ?? []
   const addRule = financeContext?.addRule
   const updateRule = financeContext?.updateRule
   const deleteRule = financeContext?.deleteRule
+  const isLoading = financeContext?.isLoading ?? true
 
   const [isOpen, setIsOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AutoRule | null>(null)
@@ -64,6 +67,17 @@ export function AutomaticRules() {
   const [fixedAmount, setFixedAmount] = useState("")
   const [targetAccountId, setTargetAccountId] = useState("")
   const [targetGoalId, setTargetGoalId] = useState("")
+
+  if (!financeContext || isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-amber-500" />
+          <p className="text-muted-foreground">A carregar automações...</p>
+        </div>
+      </div>
+    )
+  }
 
   const toggleRuleExpanded = (ruleId: string) => {
     const newExpanded = new Set(expandedRules)
@@ -481,179 +495,137 @@ export function AutomaticRules() {
             </CardContent>
           </Card>
         ) : (
-          rules.map((rule) => (
-            <Collapsible
-              key={rule.id}
-              open={expandedRules.has(rule.id)}
-              onOpenChange={() => toggleRuleExpanded(rule.id)}
-            >
-              <Card
-                className={`transition-all duration-300 ${
-                  rule.enabled ? "border-amber-200 dark:border-amber-800 shadow-md" : "opacity-60 border-muted"
-                }`}
+          rules.map((rule) => {
+            const ruleExecutions = rule.executions || []
+            return (
+              <Collapsible
+                key={rule.id}
+                open={expandedRules.has(rule.id)}
+                onOpenChange={() => toggleRuleExpanded(rule.id)}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div
-                          className={`p-2 rounded-lg ${
-                            rule.enabled ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-muted"
-                          }`}
-                        >
-                          <Zap className={`h-4 w-4 ${rule.enabled ? "text-white" : "text-muted-foreground"}`} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">{rule.name}</h3>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            {rule.enabled ? (
-                              <Badge
-                                variant="secondary"
-                                className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                              >
-                                <CheckCircle2 className="h-3 w-3 mr-1" />
-                                Ativa
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="bg-muted text-muted-foreground">
-                                Inativa
-                              </Badge>
-                            )}
-                            {rule.executionCount && rule.executionCount > 0 && (
-                              <Badge variant="outline" className="text-xs">
-                                {rule.executionCount}x executada
-                              </Badge>
-                            )}
-                            {rule.lastExecuted && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {new Date(rule.lastExecuted).toLocaleDateString("pt-PT")}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mt-3">
-                        <span className="font-medium">{getTriggerLabel(rule.trigger)}</span>
-                        <ArrowRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                        <span className="font-medium">{getActionLabel(rule.action)}</span>
-                      </div>
-
-                      {/* Expand button for history */}
-                      {rule.executions && rule.executions.length > 0 && (
-                        <CollapsibleTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="mt-3 gap-2 text-muted-foreground hover:text-foreground"
+                <Card
+                  className={`transition-all duration-300 ${
+                    rule.enabled ? "border-amber-200 dark:border-amber-800 shadow-md" : "opacity-60 border-muted"
+                  }`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div
+                            className={`p-2 rounded-lg ${
+                              rule.enabled ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-muted"
+                            }`}
                           >
-                            <History className="h-4 w-4" />
-                            Ver Histórico ({rule.executions.length})
-                            <ChevronDown
-                              className={`h-4 w-4 transition-transform ${expandedRules.has(rule.id) ? "rotate-180" : ""}`}
-                            />
-                          </Button>
-                        </CollapsibleTrigger>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={rule.enabled}
-                        onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
-                      />
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)} className="h-8 w-8">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteRule(rule.id)}
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Execution History */}
-                  <CollapsibleContent>
-                    {rule.executions && rule.executions.length > 0 && (
-                      <div className="mt-4 border-t pt-4">
-                        <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                          <History className="h-4 w-4" />
-                          Histórico de Execuções
-                        </h4>
-                        <ScrollArea className="h-[200px]">
-                          <div className="space-y-2">
-                            {rule.executions
-                              .slice()
-                              .reverse()
-                              .map((execution) => (
-                                <div
-                                  key={execution.id}
-                                  className={`p-3 rounded-lg border text-sm ${
-                                    execution.status === "reversed"
-                                      ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800"
-                                      : "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800"
-                                  }`}
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      {execution.status === "reversed" ? (
-                                        <RotateCcw className="h-4 w-4 text-red-500" />
-                                      ) : (
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                      )}
-                                      <span
-                                        className={`font-medium ${execution.status === "reversed" ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}
-                                      >
-                                        {formatCurrency(execution.amount)}
-                                      </span>
-                                      {execution.status === "reversed" && (
-                                        <Badge
-                                          variant="outline"
-                                          className="text-xs bg-red-100 text-red-700 border-red-300"
-                                        >
-                                          Revertida
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <span className="text-xs text-muted-foreground">
-                                      {new Date(execution.date).toLocaleDateString("pt-PT", {
-                                        day: "2-digit",
-                                        month: "short",
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <ArrowDownRight className="h-3 w-3" />
-                                    <span>{getSourceName(execution)}</span>
-                                    <ArrowRight className="h-3 w-3" />
-                                    <span>{getTargetName(execution)}</span>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mt-1 truncate">
-                                    Trigger: {execution.triggerDescription}
-                                  </p>
-                                  {execution.status === "reversed" && execution.reversedAt && (
-                                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                                      Revertida em {new Date(execution.reversedAt).toLocaleDateString("pt-PT")}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
+                            <Zap className={`h-4 w-4 ${rule.enabled ? "text-white" : "text-muted-foreground"}`} />
                           </div>
-                        </ScrollArea>
+                          <div>
+                            <h3 className="font-semibold text-foreground">{rule.name}</h3>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {rule.enabled ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                >
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Ativa
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-muted text-muted-foreground">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  Pausada
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className="text-xs">
+                                {rule.executionCount || 0} execuções
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-3 bg-muted/50 rounded-lg p-2">
+                          <span className="font-medium">{getTriggerLabel(rule.trigger)}</span>
+                          <ArrowRight className="h-4 w-4 text-amber-500" />
+                          <span className="font-medium">{getActionLabel(rule.action)}</span>
+                        </div>
                       </div>
+
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={rule.enabled}
+                          onCheckedChange={(checked) => handleToggleRule(rule.id, checked)}
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(rule)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteRule(rule.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Execution History Toggle */}
+                    {ruleExecutions.length > 0 && (
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="w-full mt-3 gap-2">
+                          <History className="h-4 w-4" />
+                          Ver Histórico ({ruleExecutions.length})
+                          <ChevronDown
+                            className={`h-4 w-4 transition-transform ${expandedRules.has(rule.id) ? "rotate-180" : ""}`}
+                          />
+                        </Button>
+                      </CollapsibleTrigger>
                     )}
-                  </CollapsibleContent>
-                </CardContent>
-              </Card>
-            </Collapsible>
-          ))
+
+                    <CollapsibleContent>
+                      <ScrollArea className="h-[200px] mt-3 rounded-lg border p-3">
+                        <div className="space-y-2">
+                          {ruleExecutions.map((execution, idx) => (
+                            <div
+                              key={idx}
+                              className={`flex items-center justify-between p-2 rounded-lg text-sm ${
+                                execution.status === "reversed"
+                                  ? "bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800"
+                                  : "bg-muted/50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                {execution.status === "reversed" ? (
+                                  <RotateCcw className="h-4 w-4 text-orange-500" />
+                                ) : (
+                                  <ArrowDownRight className="h-4 w-4 text-emerald-500" />
+                                )}
+                                <div>
+                                  <span className="font-medium">{formatCurrency(execution.amount)}</span>
+                                  <span className="text-muted-foreground mx-1">→</span>
+                                  <span>{getTargetName(execution)}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {execution.status === "reversed" && (
+                                  <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                    Revertida
+                                  </Badge>
+                                )}
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(execution.executedAt).toLocaleDateString("pt-PT")}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </CollapsibleContent>
+                  </CardContent>
+                </Card>
+              </Collapsible>
+            )
+          })
         )}
       </div>
     </div>

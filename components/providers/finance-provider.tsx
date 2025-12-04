@@ -1057,8 +1057,5 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
 export function useFinance() {
   const context = useContext(FinanceContext)
-  if (!context) {
-    throw new Error("useFinance must be used within a FinanceProvider")
-  }
-  return context
+  return context ?? null
 }
