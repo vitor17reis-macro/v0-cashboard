@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import {
   type Transaction,
@@ -14,6 +14,7 @@ import {
   type Goal,
   type AutoRule,
   type RuleExecution,
+  type FinanceContextType,
 } from "@/lib/types"
 import {
   startOfDay,
@@ -27,47 +28,6 @@ import {
   isWithinInterval,
   parseISO,
 } from "date-fns"
-
-interface FinanceContextType {
-  transactions: Transaction[]
-  filteredTransactions: Transaction[]
-  categories: Category[]
-  budgets: Budget[]
-  accounts: Account[]
-  goals: Goal[]
-  period: Period
-  setPeriod: (period: Period) => void
-  addTransaction: (transaction: Omit<Transaction, "id">) => Promise<void>
-  deleteTransaction: (id: string) => Promise<void>
-  reverseTransaction: (id: string) => Promise<void>
-  updateBudget: (categoryId: string, limit: number) => void
-  addAccount: (account: Omit<Account, "id">) => Promise<void>
-  updateAccount: (id: string, updates: Partial<Account>) => Promise<void>
-  deleteAccount: (id: string) => Promise<void>
-  addGoal: (goal: Omit<Goal, "id">) => Promise<void>
-  updateGoal: (id: string, updates: Partial<Goal>) => Promise<void>
-  deleteGoal: (id: string) => Promise<void>
-  getSummary: () => {
-    totalIncome: number
-    totalExpense: number
-    totalInvestment: number
-    totalSavings: number
-    balance: number
-    totalNetWorth: number
-    savingsRate: number
-  }
-  getBudgetStatus: (categoryId: string) => { spent: number; limit: number; percentage: number }
-  isLoading: boolean
-  addCategory: (category: Omit<Category, "id">) => Promise<void>
-  deleteCategory: (id: string) => Promise<void>
-  userId: string | null
-  refreshData: () => Promise<void>
-  rules: AutoRule[]
-  addRule: (rule: Omit<AutoRule, "id" | "executionCount">) => void
-  updateRule: (id: string, updates: Partial<AutoRule>) => void
-  deleteRule: (id: string) => void
-  executeRule: (ruleId: string) => Promise<void>
-}
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined)
 
@@ -89,6 +49,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const goalsRef = useRef(goals)
   const rulesRef = useRef(rules)
   const userIdRef = useRef(userId)
+  const transactionsRef = useRef(transactions) // Add transactionsRef
 
   useEffect(() => {
     accountsRef.current = accounts
@@ -105,6 +66,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     userIdRef.current = userId
   }, [userId])
+
+  useEffect(() => {
+    // Update refs immediately when state changes
+    transactionsRef.current = transactions
+  }, [transactions])
 
   const loadData = useCallback(async () => {
     try {
@@ -276,10 +242,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [rules, rulesLoaded])
 
   // Filter transactions by period
-  const filteredTransactions = transactions.filter((t) => {
-    const date = parseISO(t.date)
+  const filteredTransactions = useMemo(() => {
+    // Use useMemo for optimization
     const now = new Date()
-
     let start: Date
     let end: Date
 
@@ -305,8 +270,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         end = endOfMonth(now)
     }
 
-    return isWithinInterval(date, { start, end })
-  })
+    return transactions.filter((t) => {
+      const date = parseISO(t.date)
+      return isWithinInterval(date, { start, end })
+    })
+  }, [transactions, period]) // Add dependencies
 
   const addTransaction = async (transaction: Omit<Transaction, "id">) => {
     if (!userId) {
@@ -354,7 +322,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
       setTransactions((prev) => [newTransaction, ...prev])
 
-      // Update account balance
       if (transaction.accountId) {
         const account = accounts.find((a) => a.id === transaction.accountId)
         if (account) {
@@ -362,19 +329,337 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           if (transaction.type === "income") newBalance += transaction.amount
           else if (transaction.type === "expense") newBalance -= transaction.amount
 
-          await updateAccount(transaction.accountId, { balance: newBalance })
+          // Update in database
+          const { error: updateError } = await supabase
+            .from("accounts")
+            .update({ balance: newBalance })
+            .eq("id", transaction.accountId)
 
-          // Only for income transactions (to trigger savings/investment rules)
-          if (transaction.type === "income") {
-            // Wait a bit for state to update, then check rules
-            setTimeout(() => {
-              checkAndExecuteRules(newTransaction)
-            }, 500)
+          if (updateError) {
+            console.error("[v0] Error updating account balance:", updateError)
+          } else {
+            const updatedAccounts = accounts.map((a) =>
+              a.id === transaction.accountId ? { ...a, balance: newBalance } : a,
+            )
+            setAccounts(updatedAccounts)
+            accountsRef.current = updatedAccounts // Update ref immediately
+
+            // Only for income transactions (to trigger savings/investment rules)
+            if (transaction.type === "income") {
+              await checkAndExecuteRulesWithFreshData(newTransaction, updatedAccounts)
+            }
           }
         }
       }
     } catch (error) {
       console.error("[v0] Error in addTransaction:", error)
+    }
+  }
+
+  const checkAndExecuteRulesWithFreshData = async (transaction: Transaction, freshAccounts: Account[]) => {
+    const currentRules = rulesRef.current
+    const currentGoals = goalsRef.current
+    const currentUserId = userIdRef.current
+
+    if (!currentUserId) {
+      console.error("[v0] No user ID for checkAndExecuteRules")
+      return
+    }
+
+    const enabledRules = currentRules.filter((r) => r.enabled)
+    console.log("[v0] Checking rules for transaction:", transaction.description, "Rules:", enabledRules.length)
+
+    for (const rule of enabledRules) {
+      let matches = false
+
+      switch (rule.trigger.type) {
+        case "income_received":
+          matches =
+            transaction.type === "income" &&
+            (transaction.category?.toLowerCase().includes(rule.trigger.value.toLowerCase()) ||
+              transaction.description?.toLowerCase().includes(rule.trigger.value.toLowerCase()))
+          break
+        case "expense_contains":
+          matches =
+            transaction.type === "expense" &&
+            transaction.description?.toLowerCase().includes(rule.trigger.value.toLowerCase())
+          break
+        case "amount_above":
+          matches = transaction.amount >= Number.parseFloat(rule.trigger.value)
+          break
+        case "category_match":
+          matches = transaction.category === rule.trigger.category
+          break
+      }
+
+      if (!matches) {
+        console.log("[v0] Rule", rule.name, "does not match")
+        continue
+      }
+
+      console.log("[v0] Rule", rule.name, "MATCHES! Executing...")
+
+      let transferAmount = 0
+      if (rule.action.type === "transfer_percentage" && rule.action.percentage) {
+        transferAmount = (transaction.amount * rule.action.percentage) / 100
+      } else if (rule.action.type === "transfer_fixed" && rule.action.fixedAmount) {
+        transferAmount = rule.action.fixedAmount
+      } else if (rule.action.type === "categorize") {
+        continue
+      }
+
+      if (transferAmount <= 0) {
+        console.log("[v0] Transfer amount is 0 or less, skipping")
+        continue
+      }
+
+      const sourceAccount = freshAccounts.find((a) => a.id === transaction.accountId)
+      if (!sourceAccount) {
+        console.error("[v0] Source account not found:", transaction.accountId)
+        continue
+      }
+
+      console.log("[v0] Source account balance BEFORE deduction:", sourceAccount.balance)
+
+      if (sourceAccount.balance < transferAmount) {
+        console.error("[v0] Insufficient balance. Has:", sourceAccount.balance, "Needs:", transferAmount)
+        continue
+      }
+
+      const newTransactionId = crypto.randomUUID()
+      const executionId = crypto.randomUUID()
+      const today = new Date().toISOString().split("T")[0]
+
+      try {
+        if (rule.action.targetAccountId) {
+          const targetAccount = freshAccounts.find((a) => a.id === rule.action.targetAccountId)
+          if (!targetAccount) {
+            console.error("[v0] Target account not found:", rule.action.targetAccountId)
+            continue
+          }
+
+          console.log("[v0] Transferring", transferAmount, "from", sourceAccount.name, "to", targetAccount.name)
+
+          const newSourceBalance = sourceAccount.balance - transferAmount
+          const newTargetBalance = targetAccount.balance + transferAmount
+
+          console.log("[v0] New source balance:", newSourceBalance, "New target balance:", newTargetBalance)
+
+          // Update source account in database
+          const { error: sourceError } = await supabase
+            .from("accounts")
+            .update({ balance: newSourceBalance })
+            .eq("id", sourceAccount.id)
+
+          if (sourceError) {
+            console.error("[v0] Error updating source account:", sourceError)
+            continue
+          }
+
+          // Update target account in database
+          const { error: targetError } = await supabase
+            .from("accounts")
+            .update({ balance: newTargetBalance })
+            .eq("id", targetAccount.id)
+
+          if (targetError) {
+            console.error("[v0] Error updating target account:", targetError)
+            // Rollback source
+            await supabase.from("accounts").update({ balance: sourceAccount.balance }).eq("id", sourceAccount.id)
+            continue
+          }
+
+          const newAccounts = freshAccounts.map((a) => {
+            if (a.id === sourceAccount.id) return { ...a, balance: newSourceBalance }
+            if (a.id === targetAccount.id) return { ...a, balance: newTargetBalance }
+            return a
+          })
+          setAccounts(newAccounts)
+          accountsRef.current = newAccounts
+          freshAccounts = newAccounts // Update for next rule iteration
+
+          const description =
+            rule.action.type === "transfer_percentage"
+              ? `Automação: ${rule.name} (${rule.action.percentage}% de ${transaction.description})`
+              : `Automação: ${rule.name} (${rule.action.fixedAmount}€ de ${transaction.description})`
+
+          // Insert automation transaction
+          const { error: txError } = await supabase.from("transactions").insert({
+            id: newTransactionId,
+            user_id: currentUserId,
+            account_id: sourceAccount.id,
+            to_account_id: targetAccount.id,
+            amount: transferAmount,
+            type: "transfer",
+            category: "Transferência Automática",
+            description: description,
+            date: today,
+            rule_id: rule.id,
+          })
+
+          if (txError) {
+            console.error("[v0] Error inserting automation transaction:", txError)
+          }
+
+          // Add to local state
+          const newTransaction: Transaction = {
+            id: newTransactionId,
+            date: today,
+            description: description,
+            amount: transferAmount,
+            type: "transfer",
+            category: "Transferência Automática",
+            accountId: sourceAccount.id,
+            toAccountId: targetAccount.id,
+            ruleId: rule.id,
+          }
+
+          setTransactions((prev) => [newTransaction, ...prev])
+
+          // Update rule execution count
+          const newExecution: RuleExecution = {
+            id: executionId,
+            date: new Date().toISOString(),
+            amount: transferAmount,
+            sourceAccountId: sourceAccount.id,
+            targetAccountId: targetAccount.id,
+            triggerTransactionId: transaction.id,
+            transactionId: newTransactionId,
+          }
+
+          const updatedRules = currentRules.map((r) => {
+            if (r.id === rule.id) {
+              return {
+                ...r,
+                lastExecuted: new Date().toISOString(),
+                executionCount: r.executionCount + 1,
+                executions: [...(r.executions || []), newExecution],
+              }
+            }
+            return r
+          })
+
+          setRules(updatedRules)
+          rulesRef.current = updatedRules
+          localStorage.setItem("cashboard_auto_rules", JSON.stringify(updatedRules))
+
+          console.log("[v0] Rule executed successfully:", rule.name)
+        } else if (rule.action.targetGoalId) {
+          const targetGoal = currentGoals.find((g) => g.id === rule.action.targetGoalId)
+          if (!targetGoal) {
+            console.error("[v0] Target goal not found:", rule.action.targetGoalId)
+            continue
+          }
+
+          console.log("[v0] Transferring", transferAmount, "from", sourceAccount.name, "to goal", targetGoal.name)
+
+          const newSourceBalance = sourceAccount.balance - transferAmount
+          const newGoalAmount = targetGoal.currentAmount + transferAmount
+
+          // Update source account in database
+          const { error: sourceError } = await supabase
+            .from("accounts")
+            .update({ balance: newSourceBalance })
+            .eq("id", sourceAccount.id)
+
+          if (sourceError) {
+            console.error("[v0] Error updating source account:", sourceError)
+            continue
+          }
+
+          // Update goal in database
+          const { error: goalError } = await supabase
+            .from("goals")
+            .update({ current_amount: newGoalAmount })
+            .eq("id", targetGoal.id)
+
+          if (goalError) {
+            console.error("[v0] Error updating goal:", goalError)
+            // Rollback source
+            await supabase.from("accounts").update({ balance: sourceAccount.balance }).eq("id", sourceAccount.id)
+            continue
+          }
+
+          // Update local state
+          const newAccounts = freshAccounts.map((a) =>
+            a.id === sourceAccount.id ? { ...a, balance: newSourceBalance } : a,
+          )
+          setAccounts(newAccounts)
+          accountsRef.current = newAccounts
+          freshAccounts = newAccounts
+
+          setGoals((prev) => prev.map((g) => (g.id === targetGoal.id ? { ...g, currentAmount: newGoalAmount } : g)))
+
+          const description =
+            rule.action.type === "transfer_percentage"
+              ? `Automação: ${rule.name} (${rule.action.percentage}% para ${targetGoal.name})`
+              : `Automação: ${rule.name} (${rule.action.fixedAmount}€ para ${targetGoal.name})`
+
+          // Insert automation transaction
+          const { error: txError } = await supabase.from("transactions").insert({
+            id: newTransactionId,
+            user_id: currentUserId,
+            account_id: sourceAccount.id,
+            goal_id: targetGoal.id,
+            amount: transferAmount,
+            type: "savings",
+            category: "Poupança Automática",
+            description: description,
+            date: today,
+            rule_id: rule.id,
+          })
+
+          if (txError) {
+            console.error("[v0] Error inserting automation transaction:", txError)
+          }
+
+          // Add to local state
+          const newTransaction: Transaction = {
+            id: newTransactionId,
+            date: today,
+            description: description,
+            amount: transferAmount,
+            type: "savings",
+            category: "Poupança Automática",
+            accountId: sourceAccount.id,
+            goalId: targetGoal.id,
+            ruleId: rule.id,
+          }
+
+          setTransactions((prev) => [newTransaction, ...prev])
+
+          // Update rule
+          const newExecution: RuleExecution = {
+            id: executionId,
+            date: new Date().toISOString(),
+            amount: transferAmount,
+            sourceAccountId: sourceAccount.id,
+            targetGoalId: targetGoal.id,
+            triggerTransactionId: transaction.id,
+            transactionId: newTransactionId,
+          }
+
+          const updatedRules = currentRules.map((r) => {
+            if (r.id === rule.id) {
+              return {
+                ...r,
+                lastExecuted: new Date().toISOString(),
+                executionCount: r.executionCount + 1,
+                executions: [...(r.executions || []), newExecution],
+              }
+            }
+            return r
+          })
+
+          setRules(updatedRules)
+          rulesRef.current = updatedRules
+          localStorage.setItem("cashboard_auto_rules", JSON.stringify(updatedRules))
+
+          console.log("[v0] Rule executed successfully:", rule.name)
+        }
+      } catch (error) {
+        console.error("[v0] Error executing rule:", error)
+      }
     }
   }
 
@@ -903,6 +1188,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   )
 
   const checkAndExecuteRules = useCallback(
+    // This is now checkAndExecuteRulesWithFreshData
     async (transaction: Transaction) => {
       const currentRules = rulesRef.current
       const currentAccounts = accountsRef.current
@@ -961,7 +1247,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           continue
         }
 
-        // Get fresh account data
         const sourceAccount = currentAccounts.find((a) => a.id === transaction.accountId)
         if (!sourceAccount) {
           console.error("[v0] Source account not found:", transaction.accountId)
@@ -990,7 +1275,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             const newSourceBalance = sourceAccount.balance - transferAmount
             const newTargetBalance = targetAccount.balance + transferAmount
 
-            // Update source account
             const { error: sourceError } = await supabase
               .from("accounts")
               .update({ balance: newSourceBalance })
@@ -1001,7 +1285,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               continue
             }
 
-            // Update target account
             const { error: targetError } = await supabase
               .from("accounts")
               .update({ balance: newTargetBalance })
@@ -1009,12 +1292,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
             if (targetError) {
               console.error("[v0] Error updating target account:", targetError)
-              // Rollback source
               await supabase.from("accounts").update({ balance: sourceAccount.balance }).eq("id", sourceAccount.id)
               continue
             }
 
-            // Update local state
             setAccounts((prev) =>
               prev.map((a) => {
                 if (a.id === sourceAccount.id) return { ...a, balance: newSourceBalance }
@@ -1049,7 +1330,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               console.log("[v0] Automation transaction inserted:", insertedTx)
             }
 
-            // Add to local state
             const newTransaction: Transaction = {
               id: newTransactionId,
               date: today,
@@ -1064,7 +1344,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
             setTransactions((prev) => [newTransaction, ...prev])
 
-            // Update rule execution count in localStorage
             const newExecution: RuleExecution = {
               id: executionId,
               date: new Date().toISOString(),
@@ -1088,7 +1367,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             })
 
             setRules(updatedRules)
-            localStorage.setItem("cashboard_auto_rules", JSON.stringify(updatedRules)) // Changed from finance_rules to cashboard_auto_rules
+            localStorage.setItem("cashboard_auto_rules", JSON.stringify(updatedRules))
 
             console.log("[v0] Rule executed successfully:", rule.name)
           } else if (rule.action.targetGoalId) {
@@ -1100,7 +1379,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
             console.log("[v0] Transferring", transferAmount, "from", sourceAccount.name, "to goal", targetGoal.name)
 
-            // Update source account balance
             const newSourceBalance = sourceAccount.balance - transferAmount
 
             const { error: sourceError } = await supabase
@@ -1113,7 +1391,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               continue
             }
 
-            // Update goal current amount
             const newGoalAmount = targetGoal.currentAmount + transferAmount
 
             const { error: goalError } = await supabase
@@ -1123,18 +1400,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
             if (goalError) {
               console.error("[v0] Error updating goal:", goalError)
-              // Rollback source
               await supabase.from("accounts").update({ balance: sourceAccount.balance }).eq("id", sourceAccount.id)
               continue
             }
 
-            // Update local state
             setAccounts((prev) =>
               prev.map((a) => (a.id === sourceAccount.id ? { ...a, balance: newSourceBalance } : a)),
             )
             setGoals((prev) => prev.map((g) => (g.id === targetGoal.id ? { ...g, currentAmount: newGoalAmount } : g)))
 
-            // Insert transaction
             const description =
               rule.action.type === "transfer_percentage"
                 ? `Automação: ${rule.name} (${rule.action.percentage}% para ${targetGoal.name})`
@@ -1150,13 +1424,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               category: "Poupança Automática",
               description: description,
               date: today,
+              rule_id: rule.id,
             })
 
             if (txError) {
               console.error("[v0] Error inserting goal transaction:", txError)
             }
 
-            // Add to local state
             const newTransaction: Transaction = {
               id: newTransactionId,
               date: today,
@@ -1171,7 +1445,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
             setTransactions((prev) => [newTransaction, ...prev])
 
-            // Update rule execution count
             const newExecution: RuleExecution = {
               id: executionId,
               date: new Date().toISOString(),
@@ -1195,7 +1468,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             })
 
             setRules(updatedRules)
-            localStorage.setItem("cashboard_auto_rules", JSON.stringify(updatedRules)) // Changed from finance_rules to cashboard_auto_rules
+            localStorage.setItem("cashboard_auto_rules", JSON.stringify(updatedRules))
 
             console.log("[v0] Goal rule executed successfully:", rule.name)
           }
@@ -1204,7 +1477,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [supabase, updateAccount, updateGoal, updateRuleFunc],
+    [transactions, updateAccount, updateGoal, updateRuleFunc, supabase],
   )
 
   return (
