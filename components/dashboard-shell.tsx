@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  Bot,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -49,7 +50,7 @@ import type { User } from "@supabase/supabase-js"
 import { BudgetAlerts } from "@/components/notifications/budget-alerts"
 import { BudgetToastNotifications } from "@/components/notifications/toast-notifications"
 import { CurrencySelector } from "@/components/settings/currency-selector"
-import { Chatbot } from "@/components/chatbot/chatbot"
+import { MultiAgentChatbot } from "@/components/chatbot/multi-agent-chatbot"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useTheme } from "next-themes"
@@ -573,14 +574,15 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         <Sheet open={isChatOpen} onOpenChange={setIsChatOpen}>
           <SheetTrigger asChild>
             <Button
-              className="fixed right-4 bottom-20 lg:bottom-4 h-12 w-12 rounded-full shadow-2xl bg-gradient-to-br from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 z-40"
+              className="fixed right-4 bottom-20 lg:bottom-4 h-14 w-14 rounded-full shadow-2xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-500 hover:from-violet-600 hover:via-purple-600 hover:to-fuchsia-600 z-40 group transition-all duration-300 hover:scale-105"
               size="icon"
             >
-              <span className="text-lg">✨</span>
+              <Bot className="h-6 w-6 text-white group-hover:rotate-12 transition-transform" />
+              <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-400 rounded-full border-2 border-background animate-pulse" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-[400px] sm:w-[450px] p-0">
-            <Chatbot onClose={() => setIsChatOpen(false)} />
+          <SheetContent side="right" className="w-[420px] sm:w-[480px] p-0">
+            <MultiAgentChatbot onClose={() => setIsChatOpen(false)} />
           </SheetContent>
         </Sheet>
       </div>
