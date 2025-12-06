@@ -1,5 +1,4 @@
-import { streamText, tool } from "ai"
-import { z } from "zod"
+import { streamText } from "ai"
 import { createClient } from "@supabase/supabase-js"
 
 export const maxDuration = 30
@@ -71,57 +70,14 @@ Podes ajudar o utilizador com:
 - Como usar melhor a aplicação CashBoard
 
 Quando o utilizador perguntar sobre as suas finanças, usa os dados acima para dar respostas personalizadas.
-Mantém as respostas concisas mas úteis.`
+Mantém as respostas concisas mas úteis.
+Usa formatação markdown com **negrito** para destacar pontos importantes.`
 
   const result = streamText({
     model: "anthropic/claude-sonnet-4-20250514",
     system: systemPrompt,
     messages,
-    tools: {
-      getFinancialSummary: tool({
-        description: "Obtém um resumo financeiro detalhado do utilizador",
-        parameters: z.object({}),
-        execute: async () => {
-          return userContext || "Dados financeiros não disponíveis"
-        },
-      }),
-      suggestSavings: tool({
-        description: "Sugere formas de poupar dinheiro baseado nos gastos do utilizador",
-        parameters: z.object({
-          targetAmount: z.number().optional().describe("Valor objetivo de poupança"),
-        }),
-        execute: async ({ targetAmount }) => {
-          return `Sugestões de poupança${targetAmount ? ` para atingir €${targetAmount}` : ""}:
-1. Analise as suas subscrições mensais e cancele as que não usa
-2. Defina um orçamento para cada categoria de despesa
-3. Use a regra 50/30/20: 50% necessidades, 30% desejos, 20% poupança
-4. Configure automações no CashBoard para transferir automaticamente para poupança`
-        },
-      }),
-      explainConcept: tool({
-        description: "Explica um conceito financeiro",
-        parameters: z.object({
-          concept: z.string().describe("O conceito financeiro a explicar"),
-        }),
-        execute: async ({ concept }) => {
-          const concepts: Record<string, string> = {
-            "juros compostos":
-              "Juros compostos são juros que incidem sobre o capital inicial mais os juros acumulados. É o 'juros sobre juros' que faz o dinheiro crescer exponencialmente ao longo do tempo.",
-            etf: "ETF (Exchange Traded Fund) é um fundo de investimento negociado em bolsa que replica um índice. Permite diversificar com baixo custo.",
-            "fundo de emergência":
-              "É uma reserva de dinheiro para imprevistos, idealmente 3-6 meses de despesas mensais, guardada numa conta de fácil acesso.",
-            inflação:
-              "Inflação é o aumento generalizado dos preços ao longo do tempo, que reduz o poder de compra do dinheiro.",
-          }
-          return (
-            concepts[concept.toLowerCase()] ||
-            `${concept}: Conceito financeiro importante para a gestão das suas finanças pessoais.`
-          )
-        },
-      }),
-    },
-    maxSteps: 3,
   })
 
-  return result.toUIMessageStreamResponse()
+  return result.toDataStreamResponse()
 }

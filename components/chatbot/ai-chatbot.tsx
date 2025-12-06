@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useRef, useState, useContext } from "react"
+import { useRef, useEffect, useContext } from "react"
+import { useChat } from "@ai-sdk/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -19,24 +20,24 @@ import {
   HelpCircle,
 } from "lucide-react"
 import { FinanceContext } from "@/components/providers/finance-provider"
-import { useCurrency } from "@/contexts/currency-context"
-
-interface Message {
-  id: string
-  role: "user" | "assistant"
-  content: string
-}
 
 interface AIChatbotProps {
   onClose?: () => void
 }
 
 export function AIChatbot({ onClose }: AIChatbotProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: `Olá! Sou o assistente inteligente do CashBoard. Posso ajudar-te com:
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const financeContext = useContext(FinanceContext)
+  const userId = financeContext?.userId
+
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput } = useChat({
+    api: "/api/chat",
+    body: { userId },
+    initialMessages: [
+      {
+        id: "welcome",
+        role: "assistant",
+        content: `Olá! Sou o assistente inteligente do CashBoard. Posso ajudar-te com:
 
 • **Análise financeira** - Consultar saldo, despesas, receitas
 • **Conselhos de poupança** - Dicas personalizadas para poupar
@@ -45,16 +46,9 @@ export function AIChatbot({ onClose }: AIChatbotProps) {
 • **Usar o CashBoard** - Guiar-te nas funcionalidades
 
 Pergunta-me o que quiseres!`,
-    },
-  ])
-  const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  const financeContext = useContext(FinanceContext)
-  const { formatCurrency } = useCurrency()
-
-  const userId = financeContext?.userId
+      },
+    ],
+  })
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -64,137 +58,18 @@ Pergunta-me o que quiseres!`,
     }, 100)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input.trim(),
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-    setInput("")
-    setIsLoading(true)
+  useEffect(() => {
     scrollToBottom()
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          userId,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to get response")
-      }
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "",
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
-
-      if (reader) {
-        let fullContent = ""
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          const chunk = decoder.decode(value)
-          const lines = chunk.split("\n")
-
-          for (const line of lines) {
-            if (line.startsWith("0:")) {
-              try {
-                const text = JSON.parse(line.slice(2))
-                fullContent += text
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fullContent } : m)),
-                )
-                scrollToBottom()
-              } catch {
-                // Skip malformed JSON
-              }
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("[v0] Chat error:", error)
-      // Fallback to local response
-      const fallbackResponse = generateLocalResponse(input.trim())
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: fallbackResponse,
-        },
-      ])
-    } finally {
-      setIsLoading(false)
-      scrollToBottom()
-    }
-  }
-
-  const generateLocalResponse = (query: string): string => {
-    const q = query.toLowerCase()
-
-    if (financeContext) {
-      const { accounts = [], goals = [], transactions = [] } = financeContext
-      const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0)
-      const totalSavings = accounts.filter((a) => a.type === "savings").reduce((sum, a) => sum + a.balance, 0)
-      const totalInvestments = accounts.filter((a) => a.type === "investment").reduce((sum, a) => sum + a.balance, 0)
-
-      if (q.includes("saldo") || q.includes("quanto tenho") || q.includes("patrimonio")) {
-        return `O teu património total é de **${formatCurrency(totalBalance)}**.\n\n• Poupança: ${formatCurrency(totalSavings)}\n• Investimentos: ${formatCurrency(totalInvestments)}\n\nPosso ajudar-te a analisar mais detalhadamente ou dar sugestões de poupança.`
-      }
-
-      if (q.includes("meta") || q.includes("objetivo")) {
-        if (goals.length === 0) {
-          return "Ainda não tens metas definidas. As metas ajudam-te a poupar para objetivos específicos. Queres que te ajude a criar uma estratégia?"
-        }
-        const goalsList = goals
-          .map((g) => {
-            const progress = g.targetAmount > 0 ? ((g.currentAmount / g.targetAmount) * 100).toFixed(0) : 0
-            return `• **${g.name}**: ${progress}% (${formatCurrency(g.currentAmount)}/${formatCurrency(g.targetAmount)})`
-          })
-          .join("\n")
-        return `Tens ${goals.length} meta(s):\n\n${goalsList}\n\nQueres dicas para atingir estas metas mais rapidamente?`
-      }
-    }
-
-    if (q.includes("poupar") || q.includes("poupanca") || q.includes("economizar")) {
-      return `**Dicas para poupar mais:**\n\n1. **Regra 50/30/20** - 50% necessidades, 30% desejos, 20% poupança\n2. **Automações** - Configura transferências automáticas no dia do salário\n3. **Revê subscrições** - Cancela serviços que não usas\n4. **Metas visuais** - Define objetivos concretos para te motivar\n\nQueres que crie um plano personalizado?`
-    }
-
-    if (q.includes("investir") || q.includes("investimento")) {
-      return `**Sobre investimentos:**\n\n• **ETFs** - Fundos diversificados com baixo custo\n• **Juros compostos** - O tempo é o teu maior aliado\n• **Diversificação** - Não ponhas todos os ovos no mesmo cesto\n\nAntes de investir, garante que tens um fundo de emergência (3-6 meses de despesas). Queres saber mais sobre algum tema específico?`
-    }
-
-    return `Posso ajudar-te com:\n\n• Consultar o teu saldo e património\n• Analisar despesas e receitas\n• Dicas de poupança personalizadas\n• Explicar conceitos financeiros\n• Criar planos para atingir metas\n\nO que gostarias de saber?`
-  }
+  }, [messages])
 
   const handleQuickAction = (query: string) => {
     setInput(query)
-    const form = document.querySelector("form")
-    if (form) {
-      const event = new Event("submit", { bubbles: true, cancelable: true })
-      form.dispatchEvent(event)
-    }
+    setTimeout(() => {
+      const form = document.getElementById("chat-form") as HTMLFormElement
+      if (form) {
+        form.requestSubmit()
+      }
+    }, 50)
   }
 
   const quickActions = [
@@ -205,6 +80,28 @@ Pergunta-me o que quiseres!`,
     { icon: GraduationCap, label: "Aprender", query: "Explica-me o que são ETFs" },
     { icon: HelpCircle, label: "Ajuda", query: "O que podes fazer?" },
   ]
+
+  // Helper to get message text content
+  const getMessageContent = (message: (typeof messages)[0]): string => {
+    // Check if message has parts (new AI SDK format)
+    if ("parts" in message && Array.isArray(message.parts)) {
+      return message.parts
+        .filter((part): part is { type: "text"; text: string } => part.type === "text")
+        .map((part) => part.text)
+        .join("")
+    }
+    // Fallback to content string
+    return typeof message.content === "string" ? message.content : ""
+  }
+
+  // Helper to render formatted text
+  const renderFormattedText = (text: string) => {
+    return text.split("\n").map((line, i) => (
+      <p key={i} className="mb-1 last:mb-0">
+        {line.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}
+      </p>
+    ))
+  }
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -246,44 +143,58 @@ Pergunta-me o que quiseres!`,
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef as any}>
+      <ScrollArea className="flex-1 p-4" ref={scrollRef as React.RefObject<HTMLDivElement>}>
         <div className="space-y-4">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-              {message.role === "assistant" && (
-                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shrink-0">
-                  <Sparkles className="h-4 w-4 text-primary-foreground" />
-                </div>
-              )}
+          {messages.map((message) => {
+            const content = getMessageContent(message)
+
+            return (
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                  message.role === "user"
-                    ? "bg-primary text-primary-foreground rounded-br-md"
-                    : "bg-muted rounded-bl-md"
-                }`}
+                key={message.id}
+                className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div className="text-sm whitespace-pre-wrap">
-                  {message.content.split("\n").map((line, i) => (
-                    <p key={i} className="mb-1 last:mb-0">
-                      {line.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}
-                    </p>
-                  ))}
+                {message.role === "assistant" && (
+                  <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shrink-0">
+                    <Sparkles className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                )}
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    message.role === "user"
+                      ? "bg-primary text-primary-foreground rounded-br-md"
+                      : "bg-muted rounded-bl-md"
+                  }`}
+                >
+                  {content ? (
+                    <div className="text-sm whitespace-pre-wrap">{renderFormattedText(content)}</div>
+                  ) : (
+                    isLoading &&
+                    message.role === "assistant" && (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">A pensar...</span>
+                      </div>
+                    )
+                  )}
                 </div>
+                {message.role === "user" && (
+                  <div className="h-8 w-8 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                    <UserIcon className="h-4 w-4" />
+                  </div>
+                )}
               </div>
-              {message.role === "user" && (
-                <div className="h-8 w-8 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                  <UserIcon className="h-4 w-4" />
-                </div>
-              )}
-            </div>
-          ))}
-          {isLoading && (
+            )
+          })}
+          {isLoading && messages[messages.length - 1]?.role === "user" && (
             <div className="flex gap-3">
               <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shrink-0">
                 <Sparkles className="h-4 w-4 text-primary-foreground" />
               </div>
               <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm text-muted-foreground">A pensar...</span>
+                </div>
               </div>
             </div>
           )}
@@ -292,10 +203,10 @@ Pergunta-me o que quiseres!`,
 
       {/* Input */}
       <div className="p-4 border-t">
-        <form onSubmit={handleSubmit} className="flex gap-2">
+        <form id="chat-form" onSubmit={handleSubmit} className="flex gap-2">
           <Input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             placeholder="Escreve a tua pergunta..."
             disabled={isLoading}
             className="rounded-xl"

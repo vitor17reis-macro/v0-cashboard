@@ -67,47 +67,47 @@ const TYPES: {
     value: "income",
     label: "Receita",
     icon: TrendingUpIcon,
-    color: "text-income",
-    bgColor: "bg-income",
-    borderColor: "border-income/30",
+    color: "text-green-600",
+    bgColor: "bg-green-600",
+    borderColor: "border-green-600/30",
   },
   {
     value: "expense",
     label: "Despesa",
     icon: TrendingDownIcon,
-    color: "text-expense",
-    bgColor: "bg-expense",
-    borderColor: "border-expense/30",
+    color: "text-red-600",
+    bgColor: "bg-red-600",
+    borderColor: "border-red-600/30",
   },
   {
     value: "investment",
     label: "Investimento",
     icon: CoinsIcon,
-    color: "text-investment",
-    bgColor: "bg-investment",
-    borderColor: "border-investment/30",
+    color: "text-blue-600",
+    bgColor: "bg-blue-600",
+    borderColor: "border-blue-600/30",
   },
   {
     value: "savings",
     label: "Poupança",
     icon: PiggyBankIcon,
-    color: "text-savings",
-    bgColor: "bg-savings",
-    borderColor: "border-savings/30",
+    color: "text-orange-500",
+    bgColor: "bg-orange-500",
+    borderColor: "border-orange-500/30",
   },
 ]
 
 const COLORS = [
-  { id: "#0d9488", name: "Teal" },
-  { id: "#059669", name: "Emerald" },
-  { id: "#3b82f6", name: "Azul" },
-  { id: "#7c3aed", name: "Violeta" },
-  { id: "#ec4899", name: "Rosa" },
+  { id: "#16a34a", name: "Verde" },
+  { id: "#059669", name: "Esmeralda" },
+  { id: "#dc2626", name: "Vermelho" },
+  { id: "#ef4444", name: "Vermelho Claro" },
+  { id: "#2563eb", name: "Azul" },
+  { id: "#3b82f6", name: "Azul Claro" },
   { id: "#f97316", name: "Laranja" },
-  { id: "#eab308", name: "Amarelo" },
-  { id: "#ef4444", name: "Vermelho" },
-  { id: "#06b6d4", name: "Cyan" },
-  { id: "#8b5cf6", name: "Purple" },
+  { id: "#fb923c", name: "Laranja Claro" },
+  { id: "#8b5cf6", name: "Violeta" },
+  { id: "#ec4899", name: "Rosa" },
 ]
 
 const CATEGORY_ICONS: { id: string; icon: React.ElementType; label: string }[] = [
@@ -222,39 +222,71 @@ function getDefaultIconForCategory(name: string): string {
   return "tag"
 }
 
-function getDefaultColorForCategory(name: string): string {
-  const nameLower = name.toLowerCase()
-  const colorMappings: Record<string, string> = {
-    alimentação: "#f97316",
-    alimentacao: "#f97316",
-    comida: "#f97316",
-    transporte: "#3b82f6",
-    transportes: "#3b82f6",
-    carro: "#3b82f6",
-    casa: "#8b5cf6",
-    habitação: "#8b5cf6",
-    habitacao: "#8b5cf6",
-    saúde: "#ef4444",
-    saude: "#ef4444",
-    educação: "#06b6d4",
-    educacao: "#06b6d4",
-    lazer: "#ec4899",
-    entretenimento: "#ec4899",
-    salário: "#059669",
-    salario: "#059669",
+function getDefaultColorForType(type: TransactionType): string {
+  switch (type) {
+    case "income":
+      return "#16a34a" // Green
+    case "expense":
+      return "#dc2626" // Red
+    case "investment":
+      return "#2563eb" // Blue
+    case "savings":
+      return "#f97316" // Orange
+    default:
+      return "#16a34a"
+  }
+}
+
+function getDefaultColorForCategory(name: string, type?: TransactionType): string {
+  // If type is provided, use type-based color
+  if (type) {
+    return getDefaultColorForType(type)
   }
 
-  for (const [key, color] of Object.entries(colorMappings)) {
-    if (nameLower.includes(key)) return color
+  const nameLower = name.toLowerCase()
+
+  // Income keywords - Green
+  if (
+    nameLower.includes("salário") ||
+    nameLower.includes("salario") ||
+    nameLower.includes("receita") ||
+    nameLower.includes("rendimento") ||
+    nameLower.includes("freelance") ||
+    nameLower.includes("bonus")
+  ) {
+    return "#16a34a"
   }
-  return "#0d9488"
+
+  // Savings keywords - Orange
+  if (
+    nameLower.includes("poupança") ||
+    nameLower.includes("poupanca") ||
+    nameLower.includes("reserva") ||
+    nameLower.includes("emergência")
+  ) {
+    return "#f97316"
+  }
+
+  // Investment keywords - Blue
+  if (
+    nameLower.includes("investimento") ||
+    nameLower.includes("ações") ||
+    nameLower.includes("acoes") ||
+    nameLower.includes("etf") ||
+    nameLower.includes("fundos")
+  ) {
+    return "#2563eb"
+  }
+
+  // Default to red for expenses
+  return "#dc2626"
 }
 
 export function CategoryManager() {
   const { categories = [], addCategory, deleteCategory, updateCategory } = useFinance()
   const [newCategoryName, setNewCategoryName] = useState("")
   const [newCategoryType, setNewCategoryType] = useState<TransactionType>("expense")
-  const [newCategoryColor, setNewCategoryColor] = useState("#0d9488")
+  const [newCategoryColor, setNewCategoryColor] = useState("#dc2626") // Default to red for expense
   const [newCategoryIcon, setNewCategoryIcon] = useState("tag")
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState("")
@@ -262,9 +294,19 @@ export function CategoryManager() {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [editName, setEditName] = useState("")
   const [editType, setEditType] = useState<TransactionType>("expense")
-  const [editColor, setEditColor] = useState("#0d9488")
+  const [editColor, setEditColor] = useState("#dc2626")
   const [editIcon, setEditIcon] = useState("tag")
   const [isEditing, setIsEditing] = useState(false)
+
+  const handleTypeChange = (type: TransactionType) => {
+    setNewCategoryType(type)
+    setNewCategoryColor(getDefaultColorForType(type))
+  }
+
+  const handleEditTypeChange = (type: TransactionType) => {
+    setEditType(type)
+    setEditColor(getDefaultColorForType(type))
+  }
 
   const handleAdd = async () => {
     if (!newCategoryName.trim()) {
@@ -296,7 +338,7 @@ export function CategoryManager() {
     setEditingCategory(category)
     setEditName(category.name)
     setEditType(category.type)
-    setEditColor(category.color || getDefaultColorForCategory(category.name))
+    setEditColor(category.color || getDefaultColorForCategory(category.name, category.type))
     setEditIcon(category.icon || getDefaultIconForCategory(category.name))
   }
 
@@ -359,11 +401,7 @@ export function CategoryManager() {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs uppercase tracking-wider text-white/80">Tipo</Label>
-                <Select
-                  value={newCategoryType}
-                  onValueChange={(v) => setNewCategoryType(v as TransactionType)}
-                  disabled={isAdding}
-                >
+                <Select value={newCategoryType} onValueChange={handleTypeChange} disabled={isAdding}>
                   <SelectTrigger className="h-12 rounded-xl border-white/20 bg-white/10 backdrop-blur-sm text-white">
                     <SelectValue />
                   </SelectTrigger>
@@ -474,7 +512,7 @@ export function CategoryManager() {
               <div className="grid gap-2 pl-2">
                 {typeCategories.map((category, index) => {
                   const iconId = category.icon || getDefaultIconForCategory(category.name)
-                  const color = category.color || getDefaultColorForCategory(category.name)
+                  const color = category.color || getDefaultColorForType(category.type)
                   const CategoryIcon = getCategoryIcon(iconId)
 
                   return (
@@ -539,26 +577,34 @@ export function CategoryManager() {
         )}
       </div>
 
+      {/* Edit Dialog */}
       <Dialog open={!!editingCategory} onOpenChange={(open) => !open && setEditingCategory(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Editar Categoria</DialogTitle>
-            <DialogDescription>Altere os detalhes da categoria</DialogDescription>
+            <DialogTitle className="font-serif">Editar Categoria</DialogTitle>
+            <DialogDescription>Atualize os detalhes da categoria.</DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nome</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome da categoria" />
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Nome da categoria"
+                className="rounded-xl"
+              />
             </div>
+
             <div className="space-y-2">
               <Label>Tipo</Label>
-              <Select value={editType} onValueChange={(v) => setEditType(v as TransactionType)}>
-                <SelectTrigger>
+              <Select value={editType} onValueChange={handleEditTypeChange}>
+                <SelectTrigger className="rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl">
                   {TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
+                    <SelectItem key={t.value} value={t.value} className="rounded-lg">
                       <div className="flex items-center gap-2">
                         <t.icon className={`h-4 w-4 ${t.color}`} />
                         <span>{t.label}</span>
@@ -568,6 +614,7 @@ export function CategoryManager() {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
               <Label>Ícone</Label>
               <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-muted max-h-32 overflow-y-auto">
@@ -581,7 +628,7 @@ export function CategoryManager() {
                       className={`h-9 w-9 rounded-lg flex items-center justify-center transition-all ${
                         editIcon === iconItem.id
                           ? "bg-primary text-primary-foreground scale-110"
-                          : "bg-background hover:bg-muted-foreground/10"
+                          : "bg-background hover:bg-accent"
                       }`}
                       title={iconItem.label}
                     >
@@ -591,9 +638,10 @@ export function CategoryManager() {
                 })}
               </div>
             </div>
+
             <div className="space-y-2">
               <Label>Cor</Label>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-muted">
                 {COLORS.map((c) => (
                   <button
                     key={c.id}
@@ -609,11 +657,12 @@ export function CategoryManager() {
               </div>
             </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setEditingCategory(null)}>
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setEditingCategory(null)} className="flex-1 rounded-xl">
               Cancelar
             </Button>
-            <Button onClick={handleEdit} disabled={isEditing || !editName.trim()}>
+            <Button onClick={handleEdit} disabled={!editName.trim() || isEditing} className="flex-1 rounded-xl">
               {isEditing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Guardar
             </Button>
