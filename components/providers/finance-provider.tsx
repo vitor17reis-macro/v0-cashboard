@@ -693,7 +693,22 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         transaction.category === "Transferência Automática" ||
         transaction.category === "Poupança Automática"
 
-      if (isAutomationTransaction) {
+      // Check if this is a goal withdrawal transaction
+      const isGoalWithdrawal =
+        transaction.type === "income" &&
+        transaction.goalId &&
+        transaction.description?.startsWith("Levantamento da meta:")
+
+      if (isGoalWithdrawal) {
+        // Reverse goal withdrawal: add back to goal, subtract from account
+        const account = accounts.find((a) => a.id === transaction.accountId)
+        const goal = goals.find((g) => g.id === transaction.goalId)
+
+        if (account && goal) {
+          await updateAccount(account.id, { balance: account.balance - transaction.amount })
+          await updateGoal(goal.id, { currentAmount: goal.currentAmount + transaction.amount })
+        }
+      } else if (isAutomationTransaction) {
         const sourceAccount = accounts.find((a) => a.id === transaction.accountId)
 
         if (transaction.type === "transfer" && transaction.toAccountId) {
