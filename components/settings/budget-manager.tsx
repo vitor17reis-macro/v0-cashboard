@@ -4,6 +4,83 @@ import { useFinance } from "@/components/providers/finance-provider"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertTriangleIcon, Target, Sparkles, FlameIcon, ShieldCheckIcon } from "lucide-react"
+import {
+  UtensilsIcon,
+  CarIcon,
+  HomeIcon,
+  ShoppingBagIcon,
+  HeartPulseIcon,
+  GraduationCapIcon,
+  PlaneIcon,
+  WifiIcon,
+  SmartphoneIcon,
+  GiftIcon,
+  CoffeeIcon,
+  FuelIcon,
+  BusIcon,
+  DumbbellIcon,
+  MusicIcon,
+  FilmIcon,
+  GamepadIcon,
+  BookIcon,
+  BriefcaseIcon,
+  BabyIcon,
+  PawPrintIcon,
+  ScissorsIcon,
+  ShirtIcon,
+  PlugIcon,
+  WrenchIcon,
+  StethoscopeIcon,
+  PillIcon,
+  BanknoteIcon,
+  ReceiptIcon,
+  WalletIcon,
+  LandmarkIcon,
+  TrendingUp,
+  TagIcon,
+} from "lucide-react"
+import type React from "react"
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  utensils: UtensilsIcon,
+  coffee: CoffeeIcon,
+  car: CarIcon,
+  fuel: FuelIcon,
+  bus: BusIcon,
+  home: HomeIcon,
+  plug: PlugIcon,
+  wifi: WifiIcon,
+  smartphone: SmartphoneIcon,
+  shopping: ShoppingBagIcon,
+  shirt: ShirtIcon,
+  heart: HeartPulseIcon,
+  stethoscope: StethoscopeIcon,
+  pill: PillIcon,
+  graduation: GraduationCapIcon,
+  book: BookIcon,
+  plane: PlaneIcon,
+  gift: GiftIcon,
+  dumbbell: DumbbellIcon,
+  music: MusicIcon,
+  film: FilmIcon,
+  gamepad: GamepadIcon,
+  briefcase: BriefcaseIcon,
+  baby: BabyIcon,
+  paw: PawPrintIcon,
+  scissors: ScissorsIcon,
+  wrench: WrenchIcon,
+  banknote: BanknoteIcon,
+  receipt: ReceiptIcon,
+  wallet: WalletIcon,
+  landmark: LandmarkIcon,
+  trending: TrendingUp,
+  tag: TagIcon,
+}
+
+function getCategoryIcon(iconId: string | undefined): React.ElementType {
+  if (!iconId) return TagIcon
+  return ICON_MAP[iconId] || TagIcon
+}
 
 export function BudgetManager() {
   const { categories = [], updateBudget, getBudgetStatus } = useFinance()
@@ -126,6 +203,7 @@ export function BudgetManager() {
           const status = getBudgetStatus(category.id)
           const statusInfo = getStatusInfo(status.percentage)
           const StatusIcon = statusInfo.icon
+          const CategoryIcon = getCategoryIcon(category.icon)
 
           return (
             <div
@@ -146,7 +224,7 @@ export function BudgetManager() {
                     className="h-12 w-12 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
                     style={{ backgroundColor: category.color }}
                   >
-                    {category.name.charAt(0).toUpperCase()}
+                    <CategoryIcon className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <Label className="font-bold text-base truncate block">{category.name}</Label>

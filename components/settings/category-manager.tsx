@@ -18,6 +18,38 @@ import {
   TrendingDownIcon,
   PiggyBankIcon,
   CoinsIcon,
+  UtensilsIcon,
+  CarIcon,
+  HomeIcon,
+  ShoppingBagIcon,
+  HeartPulseIcon,
+  GraduationCapIcon,
+  PlaneIcon,
+  WifiIcon,
+  SmartphoneIcon,
+  GiftIcon,
+  CoffeeIcon,
+  FuelIcon,
+  BusIcon,
+  DumbbellIcon,
+  MusicIcon,
+  FilmIcon,
+  GamepadIcon,
+  BookIcon,
+  BriefcaseIcon,
+  BabyIcon,
+  PawPrintIcon,
+  ScissorsIcon,
+  ShirtIcon,
+  PlugIcon,
+  WrenchIcon,
+  StethoscopeIcon,
+  PillIcon,
+  BanknoteIcon,
+  ReceiptIcon,
+  WalletIcon,
+  LandmarkIcon,
+  TrendingUp,
 } from "lucide-react"
 import type { TransactionType } from "@/lib/types"
 
@@ -76,11 +108,53 @@ const COLORS = [
   { id: "#8b5cf6", name: "Purple" },
 ]
 
+const CATEGORY_ICONS: { id: string; icon: React.ElementType; label: string }[] = [
+  { id: "utensils", icon: UtensilsIcon, label: "Alimentação" },
+  { id: "coffee", icon: CoffeeIcon, label: "Café" },
+  { id: "car", icon: CarIcon, label: "Carro" },
+  { id: "fuel", icon: FuelIcon, label: "Combustível" },
+  { id: "bus", icon: BusIcon, label: "Transporte" },
+  { id: "home", icon: HomeIcon, label: "Casa" },
+  { id: "plug", icon: PlugIcon, label: "Utilidades" },
+  { id: "wifi", icon: WifiIcon, label: "Internet" },
+  { id: "smartphone", icon: SmartphoneIcon, label: "Telemóvel" },
+  { id: "shopping", icon: ShoppingBagIcon, label: "Compras" },
+  { id: "shirt", icon: ShirtIcon, label: "Roupa" },
+  { id: "heart", icon: HeartPulseIcon, label: "Saúde" },
+  { id: "stethoscope", icon: StethoscopeIcon, label: "Médico" },
+  { id: "pill", icon: PillIcon, label: "Farmácia" },
+  { id: "graduation", icon: GraduationCapIcon, label: "Educação" },
+  { id: "book", icon: BookIcon, label: "Livros" },
+  { id: "plane", icon: PlaneIcon, label: "Viagens" },
+  { id: "gift", icon: GiftIcon, label: "Presentes" },
+  { id: "dumbbell", icon: DumbbellIcon, label: "Ginásio" },
+  { id: "music", icon: MusicIcon, label: "Música" },
+  { id: "film", icon: FilmIcon, label: "Cinema" },
+  { id: "gamepad", icon: GamepadIcon, label: "Jogos" },
+  { id: "briefcase", icon: BriefcaseIcon, label: "Trabalho" },
+  { id: "baby", icon: BabyIcon, label: "Crianças" },
+  { id: "paw", icon: PawPrintIcon, label: "Animais" },
+  { id: "scissors", icon: ScissorsIcon, label: "Beleza" },
+  { id: "wrench", icon: WrenchIcon, label: "Reparações" },
+  { id: "banknote", icon: BanknoteIcon, label: "Salário" },
+  { id: "receipt", icon: ReceiptIcon, label: "Faturas" },
+  { id: "wallet", icon: WalletIcon, label: "Dinheiro" },
+  { id: "landmark", icon: LandmarkIcon, label: "Banco" },
+  { id: "trending", icon: TrendingUp, label: "Investimentos" },
+  { id: "tag", icon: TagIcon, label: "Outros" },
+]
+
+function getCategoryIcon(iconId: string): React.ElementType {
+  const found = CATEGORY_ICONS.find((i) => i.id === iconId)
+  return found?.icon || TagIcon
+}
+
 export function CategoryManager() {
   const { categories = [], addCategory, deleteCategory } = useFinance()
   const [newCategoryName, setNewCategoryName] = useState("")
   const [newCategoryType, setNewCategoryType] = useState<TransactionType>("expense")
   const [newCategoryColor, setNewCategoryColor] = useState("#0d9488")
+  const [newCategoryIcon, setNewCategoryIcon] = useState("tag")
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState("")
 
@@ -98,9 +172,10 @@ export function CategoryManager() {
         name: newCategoryName.trim(),
         type: newCategoryType,
         color: newCategoryColor,
-        icon: "tag",
+        icon: newCategoryIcon,
       })
       setNewCategoryName("")
+      setNewCategoryIcon("tag")
     } catch (err) {
       console.error("[v0] Error adding category:", err)
       setError("Erro ao adicionar categoria. Por favor tente novamente.")
@@ -172,6 +247,31 @@ export function CategoryManager() {
             </div>
 
             <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wider text-white/80">Ícone</Label>
+              <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-white/10 backdrop-blur-sm max-h-32 overflow-y-auto">
+                {CATEGORY_ICONS.map((iconItem) => {
+                  const IconComp = iconItem.icon
+                  return (
+                    <button
+                      key={iconItem.id}
+                      type="button"
+                      onClick={() => setNewCategoryIcon(iconItem.id)}
+                      disabled={isAdding}
+                      className={`h-9 w-9 rounded-lg flex items-center justify-center transition-all duration-300 ${
+                        newCategoryIcon === iconItem.id
+                          ? "bg-white text-primary scale-110 shadow-lg"
+                          : "bg-white/20 text-white hover:bg-white/30 hover:scale-105"
+                      } ${isAdding ? "opacity-50 cursor-not-allowed" : ""}`}
+                      title={iconItem.label}
+                    >
+                      <IconComp className="h-4 w-4" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wider text-white/80">Cor</Label>
               <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-white/10 backdrop-blur-sm">
                 {COLORS.map((c) => (
@@ -237,40 +337,44 @@ export function CategoryManager() {
               </div>
 
               <div className="grid gap-2 pl-2">
-                {typeCategories.map((category, index) => (
-                  <div
-                    key={category.id}
-                    className="group relative flex items-center gap-3 rounded-2xl bg-card/80 hover:bg-card p-3 border border-border/50 hover:border-border transition-all duration-300 hover:shadow-md animate-in"
-                    style={{ animationDelay: `${index * 30}ms` }}
-                  >
-                    {/* Color indicator line */}
+                {typeCategories.map((category, index) => {
+                  const CategoryIcon = getCategoryIcon(category.icon || "tag")
+
+                  return (
                     <div
-                      className="absolute left-0 top-2 bottom-2 w-1 rounded-full transition-all duration-300 group-hover:h-[calc(100%-8px)]"
-                      style={{ backgroundColor: category.color }}
-                    />
-
-                    <div
-                      className="h-10 w-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-md ml-2 transition-transform duration-300 group-hover:scale-110"
-                      style={{ backgroundColor: category.color }}
+                      key={category.id}
+                      className="group relative flex items-center gap-3 rounded-2xl bg-card/80 hover:bg-card p-3 border border-border/50 hover:border-border transition-all duration-300 hover:shadow-md animate-in"
+                      style={{ animationDelay: `${index * 30}ms` }}
                     >
-                      {category.name.charAt(0).toUpperCase()}
-                    </div>
+                      {/* Color indicator line */}
+                      <div
+                        className="absolute left-0 top-2 bottom-2 w-1 rounded-full transition-all duration-300 group-hover:h-[calc(100%-8px)]"
+                        style={{ backgroundColor: category.color }}
+                      />
 
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium truncate block">{category.name}</span>
-                      <span className={`text-xs ${type.color} opacity-70`}>{type.label}</span>
-                    </div>
+                      <div
+                        className="h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-md ml-2 transition-transform duration-300 group-hover:scale-110"
+                        style={{ backgroundColor: category.color }}
+                      >
+                        <CategoryIcon className="h-5 w-5" />
+                      </div>
 
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-300 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl"
-                      onClick={() => deleteCategory(category.id)}
-                    >
-                      <Trash2Icon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex-1 min-w-0">
+                        <span className="font-medium truncate block">{category.name}</span>
+                        <span className={`text-xs ${type.color} opacity-70`}>{type.label}</span>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-300 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl"
+                        onClick={() => deleteCategory(category.id)}
+                      >
+                        <Trash2Icon className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )

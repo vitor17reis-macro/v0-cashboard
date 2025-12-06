@@ -1,6 +1,4 @@
 "use client"
-
-import type React from "react"
 import { useState, useRef, useEffect, useMemo } from "react"
 import { useChat } from "@ai-sdk/react"
 import { Button } from "@/components/ui/button"
@@ -122,7 +120,6 @@ function useSafeFinance(): FinanceContextData {
 }
 
 export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
-  const [inputValue, setInputValue] = useState("")
   const [selectedAgent, setSelectedAgent] = useState("auto")
   const [activeAgent, setActiveAgent] = useState<string>("support")
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -146,10 +143,18 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
       rules: financeData.rules,
       currency,
     }),
-    [currency],
+    [
+      financeData.userId,
+      financeData.accounts,
+      financeData.transactions,
+      financeData.goals,
+      financeData.categories,
+      financeData.rules,
+      currency,
+    ],
   )
 
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, input, setInput, handleSubmit, isLoading, error } = useChat({
     api: "/api/agents",
     body: {
       userId: agentContext.userId,
@@ -162,9 +167,10 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
         setActiveAgent(agentType)
       }
     },
+    onError: (err) => {
+      console.error("[v0] Chat error:", err)
+    },
   })
-
-  const isLoading = status === "streaming" || status === "submitted"
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -172,16 +178,14 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
     }
   }, [messages, isLoading])
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!inputValue.trim() || isLoading) return
-    sendMessage({ text: inputValue })
-    setInputValue("")
-  }
-
   const handleQuickAction = (query: string) => {
     if (isLoading) return
-    sendMessage({ text: query })
+    setInput(query)
+    // Submit after setting input
+    setTimeout(() => {
+      const form = document.getElementById("chat-form") as HTMLFormElement
+      if (form) form.requestSubmit()
+    }, 100)
   }
 
   const renderMessageContent = (content: string) => {
@@ -435,20 +439,7 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
                       )}
                     >
                       <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                        {message.parts?.map((part, index) => {
-                          if (part.type === "text") {
-                            return <div key={index}>{renderMessageContent(part.text)}</div>
-                          }
-                          if (part.type === "tool-invocation") {
-                            return (
-                              <div key={index} className="my-2 p-2 bg-muted/50 rounded-lg text-xs">
-                                <span className="text-muted-foreground">A usar: </span>
-                                <code>{part.toolName}</code>
-                              </div>
-                            )
-                          }
-                          return null
-                        }) || (typeof message.content === "string" ? renderMessageContent(message.content) : null)}
+                        {typeof message.content === "string" ? renderMessageContent(message.content) : null}
                       </div>
                     </div>
                   </div>
@@ -507,12 +498,12 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
         </ScrollArea>
       </div>
 
-      {/* Input */}
+      {/* Input - Fixed form submission */}
       <div className="p-4 border-t bg-background">
-        <form onSubmit={handleSubmit} className="flex gap-2">
+        <form id="chat-form" onSubmit={handleSubmit} className="flex gap-2">
           <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
             placeholder="Escreve a tua pergunta..."
             disabled={isLoading}
             className="flex-1 rounded-xl bg-accent/50 border-0 focus-visible:ring-1"
@@ -520,7 +511,7 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
           <Button
             type="submit"
             size="icon"
-            disabled={!inputValue.trim() || isLoading}
+            disabled={!input.trim() || isLoading}
             className={cn("rounded-xl w-11 h-11 bg-gradient-to-r", currentAgent.color)}
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
