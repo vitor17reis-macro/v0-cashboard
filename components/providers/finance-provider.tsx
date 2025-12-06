@@ -29,7 +29,7 @@ import {
   parseISO,
 } from "date-fns"
 
-const FinanceContext = createContext<FinanceContextType | undefined>(undefined)
+export const FinanceContext = createContext<FinanceContextType | undefined>(undefined)
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -555,7 +555,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           console.log("[v0] Transferring", transferAmount, "from", sourceAccount.name, "to goal", targetGoal.name)
 
           const newSourceBalance = sourceAccount.balance - transferAmount
-          const newGoalAmount = targetGoal.currentAmount + transferAmount
 
           // Update source account in database
           const { error: sourceError } = await supabase
@@ -569,6 +568,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           }
 
           // Update goal in database
+          const newGoalAmount = targetGoal.currentAmount + transferAmount
           const { error: goalError } = await supabase
             .from("goals")
             .update({ current_amount: newGoalAmount })

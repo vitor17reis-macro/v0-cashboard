@@ -23,7 +23,8 @@ import {
 } from "lucide-react"
 import { useCurrency } from "@/components/providers/currency-provider"
 import { cn } from "@/lib/utils"
-import { useFinance } from "@/components/providers/finance-provider"
+import { FinanceContext } from "@/components/providers/finance-provider"
+import { useContext } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,7 +113,7 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
 
-  const financeContext = useFinance()
+  const financeContext = useContext(FinanceContext)
   const currencyContext = useCurrency()
   const currency = currencyContext?.currency || "EUR"
 

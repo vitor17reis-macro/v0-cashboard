@@ -38,6 +38,20 @@ import {
   LandmarkIcon,
   TrendingUp,
   TagIcon,
+  DropletIcon,
+  ZapIcon,
+  TrainIcon,
+  BikeIcon,
+  UmbrellaIcon,
+  CreditCardIcon,
+  PercentIcon,
+  BuildingIcon,
+  TreesIcon,
+  ParkingCircleIcon,
+  AnchorIcon,
+  TruckIcon,
+  UserIcon,
+  PiggyBankIcon,
 } from "lucide-react"
 import type React from "react"
 
@@ -75,11 +89,260 @@ const ICON_MAP: Record<string, React.ElementType> = {
   landmark: LandmarkIcon,
   trending: TrendingUp,
   tag: TagIcon,
+  droplet: DropletIcon,
+  zap: ZapIcon,
+  train: TrainIcon,
+  bike: BikeIcon,
+  umbrella: UmbrellaIcon,
+  creditcard: CreditCardIcon,
+  percent: PercentIcon,
+  building: BuildingIcon,
+  trees: TreesIcon,
+  parking: ParkingCircleIcon,
+  anchor: AnchorIcon,
+  truck: TruckIcon,
 }
 
-function getCategoryIcon(iconId: string | undefined): React.ElementType {
-  if (!iconId) return TagIcon
-  return ICON_MAP[iconId] || TagIcon
+const CATEGORY_NAME_TO_ICON: Record<string, React.ElementType> = {
+  habitação: HomeIcon,
+  habitacao: HomeIcon,
+  casa: HomeIcon,
+  renda: HomeIcon,
+  aluguel: HomeIcon,
+  aluguer: HomeIcon,
+  hipoteca: HomeIcon,
+  mortgage: HomeIcon,
+  housing: HomeIcon,
+  home: HomeIcon,
+  rent: HomeIcon,
+
+  alimentação: UtensilsIcon,
+  alimentacao: UtensilsIcon,
+  comida: UtensilsIcon,
+  supermercado: ShoppingBagIcon,
+  mercearia: ShoppingBagIcon,
+  restaurante: UtensilsIcon,
+  restaurantes: UtensilsIcon,
+  food: UtensilsIcon,
+  groceries: ShoppingBagIcon,
+  refeições: UtensilsIcon,
+  refeicoes: UtensilsIcon,
+
+  transportes: CarIcon,
+  transporte: CarIcon,
+  transportation: CarIcon,
+  carro: CarIcon,
+  car: CarIcon,
+  combustível: FuelIcon,
+  combustivel: FuelIcon,
+  gasolina: FuelIcon,
+  fuel: FuelIcon,
+  autocarro: BusIcon,
+  autocarros: BusIcon,
+  bus: BusIcon,
+  metro: TrainIcon,
+  comboio: TrainIcon,
+  train: TrainIcon,
+  uber: CarIcon,
+  táxi: CarIcon,
+  taxi: CarIcon,
+  estacionamento: ParkingCircleIcon,
+  parking: ParkingCircleIcon,
+  bicicleta: BikeIcon,
+  bike: BikeIcon,
+
+  saúde: HeartPulseIcon,
+  saude: HeartPulseIcon,
+  health: HeartPulseIcon,
+  médico: StethoscopeIcon,
+  medico: StethoscopeIcon,
+  doctor: StethoscopeIcon,
+  hospital: StethoscopeIcon,
+  farmácia: PillIcon,
+  farmacia: PillIcon,
+  pharmacy: PillIcon,
+  medicamentos: PillIcon,
+  medicine: PillIcon,
+  dentista: StethoscopeIcon,
+  dentist: StethoscopeIcon,
+  ginásio: DumbbellIcon,
+  ginasio: DumbbellIcon,
+  gym: DumbbellIcon,
+  fitness: DumbbellIcon,
+
+  educação: GraduationCapIcon,
+  educacao: GraduationCapIcon,
+  education: GraduationCapIcon,
+  escola: GraduationCapIcon,
+  school: GraduationCapIcon,
+  universidade: GraduationCapIcon,
+  university: GraduationCapIcon,
+  cursos: BookIcon,
+  courses: BookIcon,
+  livros: BookIcon,
+  books: BookIcon,
+  formação: GraduationCapIcon,
+  formacao: GraduationCapIcon,
+
+  entretenimento: FilmIcon,
+  entertainment: FilmIcon,
+  lazer: GamepadIcon,
+  leisure: GamepadIcon,
+  cinema: FilmIcon,
+  movies: FilmIcon,
+  streaming: FilmIcon,
+  netflix: FilmIcon,
+  spotify: MusicIcon,
+  música: MusicIcon,
+  musica: MusicIcon,
+  music: MusicIcon,
+  jogos: GamepadIcon,
+  games: GamepadIcon,
+  gaming: GamepadIcon,
+
+  utilidades: PlugIcon,
+  utilities: PlugIcon,
+  eletricidade: ZapIcon,
+  electricity: ZapIcon,
+  luz: ZapIcon,
+  água: DropletIcon,
+  agua: DropletIcon,
+  water: DropletIcon,
+  gás: FlameIcon,
+  gas: FlameIcon,
+  internet: WifiIcon,
+  telecomunicações: SmartphoneIcon,
+  telecomunicacoes: SmartphoneIcon,
+  telecom: SmartphoneIcon,
+  telefone: SmartphoneIcon,
+  phone: SmartphoneIcon,
+  telemóvel: SmartphoneIcon,
+  telemovel: SmartphoneIcon,
+  mobile: SmartphoneIcon,
+
+  compras: ShoppingBagIcon,
+  shopping: ShoppingBagIcon,
+  roupa: ShirtIcon,
+  roupas: ShirtIcon,
+  clothes: ShirtIcon,
+  clothing: ShirtIcon,
+  vestuário: ShirtIcon,
+  vestuario: ShirtIcon,
+
+  viagens: PlaneIcon,
+  viagem: PlaneIcon,
+  travel: PlaneIcon,
+  férias: PlaneIcon,
+  ferias: PlaneIcon,
+  vacation: PlaneIcon,
+  holiday: PlaneIcon,
+  voo: PlaneIcon,
+  voos: PlaneIcon,
+  flights: PlaneIcon,
+  hotel: BuildingIcon,
+  hotéis: BuildingIcon,
+  hoteis: BuildingIcon,
+  hotels: BuildingIcon,
+
+  pessoal: UserIcon,
+  personal: UserIcon,
+  cabeleireiro: ScissorsIcon,
+  barbeiro: ScissorsIcon,
+  haircut: ScissorsIcon,
+  beleza: ScissorsIcon,
+  beauty: ScissorsIcon,
+
+  animais: PawPrintIcon,
+  pets: PawPrintIcon,
+  pet: PawPrintIcon,
+  veterinário: PawPrintIcon,
+  veterinario: PawPrintIcon,
+  vet: PawPrintIcon,
+
+  finanças: BanknoteIcon,
+  financas: BanknoteIcon,
+  finance: BanknoteIcon,
+  impostos: ReceiptIcon,
+  taxes: ReceiptIcon,
+  irs: ReceiptIcon,
+  seguros: UmbrellaIcon,
+  insurance: UmbrellaIcon,
+  seguro: UmbrellaIcon,
+  banco: LandmarkIcon,
+  bank: LandmarkIcon,
+  poupança: PiggyBankIcon,
+  poupanca: PiggyBankIcon,
+  savings: PiggyBankIcon,
+  investimentos: TrendingUp,
+  investments: TrendingUp,
+  dívidas: CreditCardIcon,
+  dividas: CreditCardIcon,
+  debt: CreditCardIcon,
+  empréstimo: CreditCardIcon,
+  emprestimo: CreditCardIcon,
+  loan: CreditCardIcon,
+  crédito: CreditCardIcon,
+  credito: CreditCardIcon,
+  credit: CreditCardIcon,
+
+  presentes: GiftIcon,
+  presente: GiftIcon,
+  gifts: GiftIcon,
+  gift: GiftIcon,
+  doações: GiftIcon,
+  doacoes: GiftIcon,
+  donations: GiftIcon,
+  caridade: GiftIcon,
+  charity: GiftIcon,
+
+  trabalho: BriefcaseIcon,
+  work: BriefcaseIcon,
+  escritório: BriefcaseIcon,
+  escritorio: BriefcaseIcon,
+  office: BriefcaseIcon,
+
+  família: BabyIcon,
+  familia: BabyIcon,
+  family: BabyIcon,
+  filhos: BabyIcon,
+  children: BabyIcon,
+  kids: BabyIcon,
+
+  café: CoffeeIcon,
+  cafe: CoffeeIcon,
+  coffee: CoffeeIcon,
+
+  manutenção: WrenchIcon,
+  manutencao: WrenchIcon,
+  maintenance: WrenchIcon,
+  reparações: WrenchIcon,
+  reparacoes: WrenchIcon,
+  repairs: WrenchIcon,
+
+  outros: TagIcon,
+  other: TagIcon,
+  diversos: TagIcon,
+  misc: TagIcon,
+  miscellaneous: TagIcon,
+}
+
+function getCategoryIcon(iconId: string | undefined, categoryName: string): React.ElementType {
+  if (iconId && ICON_MAP[iconId]) {
+    return ICON_MAP[iconId]
+  }
+
+  const normalizedName = categoryName.toLowerCase().trim()
+  if (CATEGORY_NAME_TO_ICON[normalizedName]) {
+    return CATEGORY_NAME_TO_ICON[normalizedName]
+  }
+
+  for (const [key, icon] of Object.entries(CATEGORY_NAME_TO_ICON)) {
+    if (normalizedName.includes(key) || key.includes(normalizedName)) {
+      return icon
+    }
+  }
+
+  return TagIcon
 }
 
 export function BudgetManager() {
@@ -131,7 +394,6 @@ export function BudgetManager() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Hero Summary Card */}
       {totalBudget > 0 && (
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 mb-6 text-white">
           <div className="absolute inset-0 overflow-hidden">
@@ -142,7 +404,6 @@ export function BudgetManager() {
             />
           </div>
 
-          {/* Grid pattern using CSS gradient instead of SVG */}
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
@@ -174,7 +435,6 @@ export function BudgetManager() {
               </div>
             </div>
 
-            {/* Progress visualization */}
             <div className="space-y-2">
               <div className="flex justify-between text-xs">
                 <span className="text-white/60">Gasto</span>
@@ -197,13 +457,12 @@ export function BudgetManager() {
         </div>
       )}
 
-      {/* Categories Budget List */}
       <div className="flex-1 overflow-auto pr-1 space-y-3">
         {expenseCategories.map((category, index) => {
           const status = getBudgetStatus(category.id)
           const statusInfo = getStatusInfo(status.percentage)
           const StatusIcon = statusInfo.icon
-          const CategoryIcon = getCategoryIcon(category.icon)
+          const CategoryIcon = getCategoryIcon(category.icon, category.name)
 
           return (
             <div
@@ -211,14 +470,12 @@ export function BudgetManager() {
               className={`group relative overflow-hidden rounded-2xl bg-card border ${statusInfo.borderColor} hover:border-border transition-all duration-500 hover:shadow-lg animate-in`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
-              {/* Status indicator bar */}
               <div
                 className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${statusInfo.gradient} transition-all duration-500`}
                 style={{ width: `${Math.min(status.percentage, 100)}%` }}
               />
 
               <div className="p-4 pt-5">
-                {/* Header */}
                 <div className="flex items-center gap-3 mb-4">
                   <div
                     className="h-12 w-12 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
@@ -244,7 +501,6 @@ export function BudgetManager() {
                   )}
                 </div>
 
-                {/* Progress Bar */}
                 {status.limit > 0 && (
                   <div className="mb-4">
                     <div className="h-2.5 bg-muted rounded-full overflow-hidden">
@@ -258,7 +514,6 @@ export function BudgetManager() {
                   </div>
                 )}
 
-                {/* Limit Input */}
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border/50 group-hover:border-border transition-colors">
                   <Label
                     htmlFor={`budget-${category.id}`}
