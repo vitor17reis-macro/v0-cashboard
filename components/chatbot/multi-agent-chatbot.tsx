@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect, useMemo } from "react"
-import { useChat } from "@ai-sdk/react"
+import { useChat } from "ai/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -106,28 +106,27 @@ const QUICK_ACTIONS = [
   { label: "Investir ETFs", query: "Devo investir em ETFs?", icon: TrendingUp },
 ]
 
-// Safe finance context hook that doesn't throw
-function useSafeFinance(): FinanceContextData {
-  const financeContext = useFinance()
-  return {
-    userId: financeContext?.userId || null,
-    accounts: financeContext?.accounts || [],
-    transactions: financeContext?.transactions || [],
-    goals: financeContext?.goals || [],
-    categories: financeContext?.categories || [],
-    rules: financeContext?.rules || [],
-  }
-}
-
 export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
   const [selectedAgent, setSelectedAgent] = useState("auto")
   const [activeAgent, setActiveAgent] = useState<string>("support")
   const scrollRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
 
-  const financeData = useSafeFinance()
+  const financeContext = useFinance()
   const currencyContext = useCurrency()
   const currency = currencyContext?.currency || "EUR"
+
+  const financeData = useMemo(
+    () => ({
+      userId: financeContext?.userId || null,
+      accounts: financeContext?.accounts || [],
+      transactions: financeContext?.transactions || [],
+      goals: financeContext?.goals || [],
+      categories: financeContext?.categories || [],
+      rules: financeContext?.rules || [],
+    }),
+    [financeContext],
+  )
 
   useEffect(() => {
     setMounted(true)
@@ -143,21 +142,12 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
       rules: financeData.rules,
       currency,
     }),
-    [
-      financeData.userId,
-      financeData.accounts,
-      financeData.transactions,
-      financeData.goals,
-      financeData.categories,
-      financeData.rules,
-      currency,
-    ],
+    [financeData, currency],
   )
 
   const { messages, input, setInput, handleSubmit, isLoading, error } = useChat({
     api: "/api/agents",
     body: {
-      userId: agentContext.userId,
       context: agentContext,
       selectedAgent,
     },
@@ -181,11 +171,10 @@ export function MultiAgentChatbot({ onClose }: MultiAgentChatbotProps) {
   const handleQuickAction = (query: string) => {
     if (isLoading) return
     setInput(query)
-    // Submit after setting input
     setTimeout(() => {
       const form = document.getElementById("chat-form") as HTMLFormElement
       if (form) form.requestSubmit()
-    }, 100)
+    }, 50)
   }
 
   const renderMessageContent = (content: string) => {
