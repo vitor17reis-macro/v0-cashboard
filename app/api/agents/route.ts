@@ -1,5 +1,4 @@
 import { streamText, tool } from "ai"
-import { openai } from "@ai-sdk/openai"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { classifyIntent, getAgentSystemPrompt } from "@/lib/agents/orchestrator"
@@ -281,9 +280,10 @@ const getFinancialEducationTool = tool({
 
 export async function POST(req: Request) {
   try {
-    const { messages, context } = (await req.json()) as {
+    const { messages, context, selectedAgent } = (await req.json()) as {
       messages: Array<{ role: string; content: string }>
       context: AgentContext
+      selectedAgent?: string
     }
 
     const lastMessage = messages[messages.length - 1]
@@ -292,13 +292,16 @@ export async function POST(req: Request) {
     // Classify intent to route to appropriate agent
     const classification = classifyIntent(userQuery, context)
 
+    // Use selected agent if specified and not "auto"
+    const agentType = selectedAgent && selectedAgent !== "auto" ? selectedAgent : classification.intent
+
     // Get agent-specific system prompt
-    const systemPrompt = getAgentSystemPrompt(classification.intent, context)
+    const systemPrompt = getAgentSystemPrompt(agentType as any, context)
 
     // Select tools based on agent type
     const agentTools: Record<string, ReturnType<typeof tool>> = {}
 
-    switch (classification.intent) {
+    switch (agentType) {
       case "sql":
         agentTools.getTransactions = getTransactionsTool
         agentTools.getAccounts = getAccountsTool
@@ -324,8 +327,8 @@ export async function POST(req: Request) {
         agentTools.getTransactions = getTransactionsTool
     }
 
-    const result = await streamText({
-      model: openai("gpt-4o-mini"),
+    const result = streamText({
+      model: "anthropic/claude-sonnet-4-20250514",
       system: `${systemPrompt}
 
 Responde sempre em português de Portugal.
@@ -333,7 +336,7 @@ Formata as respostas com markdown para melhor legibilidade.
 Quando usares ferramentas, explica os resultados de forma clara.
 No final, sugere 2-3 ações relevantes.
 
-Agente: ${classification.intent}`,
+Agente: ${agentType}`,
       messages: messages.map((m) => ({
         role: m.role as "user" | "assistant" | "system",
         content: m.content,
@@ -344,7 +347,7 @@ Agente: ${classification.intent}`,
 
     return result.toUIMessageStreamResponse({
       headers: {
-        "X-Agent-Type": classification.intent,
+        "X-Agent-Type": agentType,
       },
     })
   } catch (error) {

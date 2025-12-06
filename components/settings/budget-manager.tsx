@@ -326,6 +326,31 @@ const CATEGORY_NAME_TO_ICON: Record<string, React.ElementType> = {
   miscellaneous: TagIcon,
 }
 
+const CATEGORY_COLORS: Record<string, string> = {
+  habitação: "#6366F1",
+  habitacao: "#6366F1",
+  casa: "#6366F1",
+  renda: "#6366F1",
+  alimentação: "#F59E0B",
+  alimentacao: "#F59E0B",
+  comida: "#F59E0B",
+  transportes: "#3B82F6",
+  transporte: "#3B82F6",
+  saúde: "#EF4444",
+  saude: "#EF4444",
+  educação: "#8B5CF6",
+  educacao: "#8B5CF6",
+  entretenimento: "#EC4899",
+  lazer: "#EC4899",
+  compras: "#14B8A6",
+  shopping: "#14B8A6",
+  viagens: "#0EA5E9",
+  viagem: "#0EA5E9",
+  utilidades: "#64748B",
+  contas: "#64748B",
+  outros: "#6B7280",
+}
+
 function getCategoryIcon(iconId: string | undefined, categoryName: string): React.ElementType {
   if (iconId && ICON_MAP[iconId]) {
     return ICON_MAP[iconId]
@@ -345,46 +370,74 @@ function getCategoryIcon(iconId: string | undefined, categoryName: string): Reac
   return TagIcon
 }
 
+function getCategoryColor(categoryName: string, existingColor?: string): string {
+  if (existingColor && existingColor !== "#FFFFFF" && existingColor !== "#ffffff" && existingColor !== "white") {
+    return existingColor
+  }
+
+  const normalizedName = categoryName.toLowerCase().trim()
+
+  // Direct match
+  if (CATEGORY_COLORS[normalizedName]) {
+    return CATEGORY_COLORS[normalizedName]
+  }
+
+  // Partial match
+  for (const [key, color] of Object.entries(CATEGORY_COLORS)) {
+    if (normalizedName.includes(key) || key.includes(normalizedName)) {
+      return color
+    }
+  }
+
+  // Generate a consistent color based on the name
+  let hash = 0
+  for (let i = 0; i < categoryName.length; i++) {
+    hash = categoryName.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const hue = Math.abs(hash % 360)
+  return `hsl(${hue}, 65%, 50%)`
+}
+
+function getStatusInfo(percentage: number) {
+  if (percentage >= 100) {
+    return {
+      icon: AlertTriangleIcon,
+      color: "text-red-500",
+      bgColor: "bg-red-500",
+      bgLight: "bg-red-500/10",
+      borderColor: "border-red-500/30",
+      ringColor: "ring-red-500/20",
+      label: "Excedido",
+      gradient: "from-red-500 to-orange-500",
+    }
+  }
+  if (percentage >= 80) {
+    return {
+      icon: FlameIcon,
+      color: "text-amber-500",
+      bgColor: "bg-amber-500",
+      bgLight: "bg-amber-500/10",
+      borderColor: "border-amber-500/30",
+      ringColor: "ring-amber-500/20",
+      label: "Atenção",
+      gradient: "from-amber-500 to-yellow-500",
+    }
+  }
+  return {
+    icon: ShieldCheckIcon,
+    color: "text-emerald-500",
+    bgColor: "bg-emerald-500",
+    bgLight: "bg-emerald-500/10",
+    borderColor: "border-emerald-500/30",
+    ringColor: "ring-emerald-500/20",
+    label: "Saudável",
+    gradient: "from-emerald-500 to-teal-500",
+  }
+}
+
 export function BudgetManager() {
   const { categories = [], updateBudget, getBudgetStatus } = useFinance()
   const expenseCategories = categories.filter((c) => c.type === "expense")
-
-  const getStatusInfo = (percentage: number) => {
-    if (percentage >= 100) {
-      return {
-        icon: AlertTriangleIcon,
-        color: "text-red-500",
-        bgColor: "bg-red-500",
-        bgLight: "bg-red-500/10",
-        borderColor: "border-red-500/30",
-        ringColor: "ring-red-500/20",
-        label: "Excedido",
-        gradient: "from-red-500 to-orange-500",
-      }
-    }
-    if (percentage >= 80) {
-      return {
-        icon: FlameIcon,
-        color: "text-amber-500",
-        bgColor: "bg-amber-500",
-        bgLight: "bg-amber-500/10",
-        borderColor: "border-amber-500/30",
-        ringColor: "ring-amber-500/20",
-        label: "Atenção",
-        gradient: "from-amber-500 to-yellow-500",
-      }
-    }
-    return {
-      icon: ShieldCheckIcon,
-      color: "text-emerald-500",
-      bgColor: "bg-emerald-500",
-      bgLight: "bg-emerald-500/10",
-      borderColor: "border-emerald-500/30",
-      ringColor: "ring-emerald-500/20",
-      label: "Saudável",
-      gradient: "from-emerald-500 to-teal-500",
-    }
-  }
 
   const totalBudget = expenseCategories.reduce((acc, c) => acc + (getBudgetStatus(c.id).limit || 0), 0)
   const totalSpent = expenseCategories.reduce((acc, c) => acc + getBudgetStatus(c.id).spent, 0)
@@ -463,6 +516,7 @@ export function BudgetManager() {
           const statusInfo = getStatusInfo(status.percentage)
           const StatusIcon = statusInfo.icon
           const CategoryIcon = getCategoryIcon(category.icon, category.name)
+          const categoryColor = getCategoryColor(category.name, category.color)
 
           return (
             <div
@@ -479,7 +533,7 @@ export function BudgetManager() {
                 <div className="flex items-center gap-3 mb-4">
                   <div
                     className="h-12 w-12 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3"
-                    style={{ backgroundColor: category.color }}
+                    style={{ backgroundColor: categoryColor }}
                   >
                     <CategoryIcon className="h-6 w-6" />
                   </div>
