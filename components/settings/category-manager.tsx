@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Trash2Icon,
   PlusIcon,
@@ -50,8 +51,9 @@ import {
   WalletIcon,
   LandmarkIcon,
   TrendingUp,
+  PencilIcon,
 } from "lucide-react"
-import type { TransactionType } from "@/lib/types"
+import type { TransactionType, Category } from "@/lib/types"
 
 const TYPES: {
   value: TransactionType
@@ -149,14 +151,120 @@ function getCategoryIcon(iconId: string): React.ElementType {
   return found?.icon || TagIcon
 }
 
+function getDefaultIconForCategory(name: string): string {
+  const nameLower = name.toLowerCase()
+  const mappings: Record<string, string> = {
+    alimentação: "utensils",
+    alimentacao: "utensils",
+    comida: "utensils",
+    restaurante: "utensils",
+    supermercado: "shopping",
+    transporte: "bus",
+    transportes: "bus",
+    carro: "car",
+    combustível: "fuel",
+    combustivel: "fuel",
+    gasolina: "fuel",
+    casa: "home",
+    habitação: "home",
+    habitacao: "home",
+    renda: "home",
+    saúde: "heart",
+    saude: "heart",
+    médico: "stethoscope",
+    medico: "stethoscope",
+    farmácia: "pill",
+    farmacia: "pill",
+    educação: "graduation",
+    educacao: "graduation",
+    viagem: "plane",
+    viagens: "plane",
+    férias: "plane",
+    ferias: "plane",
+    roupa: "shirt",
+    vestuário: "shirt",
+    vestuario: "shirt",
+    ginásio: "dumbbell",
+    ginasio: "dumbbell",
+    gym: "dumbbell",
+    entretenimento: "film",
+    lazer: "gamepad",
+    streaming: "film",
+    netflix: "film",
+    spotify: "music",
+    música: "music",
+    musica: "music",
+    internet: "wifi",
+    telemóvel: "smartphone",
+    telemovel: "smartphone",
+    telefone: "smartphone",
+    trabalho: "briefcase",
+    salário: "banknote",
+    salario: "banknote",
+    banco: "landmark",
+    poupança: "wallet",
+    poupanca: "wallet",
+    investimento: "trending",
+    investimentos: "trending",
+    presente: "gift",
+    presentes: "gift",
+    animais: "paw",
+    pets: "paw",
+    crianças: "baby",
+    criancas: "baby",
+    beleza: "scissors",
+    cabeleireiro: "scissors",
+  }
+
+  for (const [key, icon] of Object.entries(mappings)) {
+    if (nameLower.includes(key)) return icon
+  }
+  return "tag"
+}
+
+function getDefaultColorForCategory(name: string): string {
+  const nameLower = name.toLowerCase()
+  const colorMappings: Record<string, string> = {
+    alimentação: "#f97316",
+    alimentacao: "#f97316",
+    comida: "#f97316",
+    transporte: "#3b82f6",
+    transportes: "#3b82f6",
+    carro: "#3b82f6",
+    casa: "#8b5cf6",
+    habitação: "#8b5cf6",
+    habitacao: "#8b5cf6",
+    saúde: "#ef4444",
+    saude: "#ef4444",
+    educação: "#06b6d4",
+    educacao: "#06b6d4",
+    lazer: "#ec4899",
+    entretenimento: "#ec4899",
+    salário: "#059669",
+    salario: "#059669",
+  }
+
+  for (const [key, color] of Object.entries(colorMappings)) {
+    if (nameLower.includes(key)) return color
+  }
+  return "#0d9488"
+}
+
 export function CategoryManager() {
-  const { categories = [], addCategory, deleteCategory } = useFinance()
+  const { categories = [], addCategory, deleteCategory, updateCategory } = useFinance()
   const [newCategoryName, setNewCategoryName] = useState("")
   const [newCategoryType, setNewCategoryType] = useState<TransactionType>("expense")
   const [newCategoryColor, setNewCategoryColor] = useState("#0d9488")
   const [newCategoryIcon, setNewCategoryIcon] = useState("tag")
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState("")
+
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [editName, setEditName] = useState("")
+  const [editType, setEditType] = useState<TransactionType>("expense")
+  const [editColor, setEditColor] = useState("#0d9488")
+  const [editIcon, setEditIcon] = useState("tag")
+  const [isEditing, setIsEditing] = useState(false)
 
   const handleAdd = async () => {
     if (!newCategoryName.trim()) {
@@ -181,6 +289,33 @@ export function CategoryManager() {
       setError("Erro ao adicionar categoria. Por favor tente novamente.")
     } finally {
       setIsAdding(false)
+    }
+  }
+
+  const openEditDialog = (category: Category) => {
+    setEditingCategory(category)
+    setEditName(category.name)
+    setEditType(category.type)
+    setEditColor(category.color || getDefaultColorForCategory(category.name))
+    setEditIcon(category.icon || getDefaultIconForCategory(category.name))
+  }
+
+  const handleEdit = async () => {
+    if (!editingCategory || !editName.trim()) return
+
+    setIsEditing(true)
+    try {
+      await updateCategory(editingCategory.id, {
+        name: editName.trim(),
+        type: editType,
+        color: editColor,
+        icon: editIcon,
+      })
+      setEditingCategory(null)
+    } catch (err) {
+      console.error("[v0] Error updating category:", err)
+    } finally {
+      setIsEditing(false)
     }
   }
 
@@ -338,7 +473,9 @@ export function CategoryManager() {
 
               <div className="grid gap-2 pl-2">
                 {typeCategories.map((category, index) => {
-                  const CategoryIcon = getCategoryIcon(category.icon || "tag")
+                  const iconId = category.icon || getDefaultIconForCategory(category.name)
+                  const color = category.color || getDefaultColorForCategory(category.name)
+                  const CategoryIcon = getCategoryIcon(iconId)
 
                   return (
                     <div
@@ -349,12 +486,12 @@ export function CategoryManager() {
                       {/* Color indicator line */}
                       <div
                         className="absolute left-0 top-2 bottom-2 w-1 rounded-full transition-all duration-300 group-hover:h-[calc(100%-8px)]"
-                        style={{ backgroundColor: category.color }}
+                        style={{ backgroundColor: color }}
                       />
 
                       <div
                         className="h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-md ml-2 transition-transform duration-300 group-hover:scale-110"
-                        style={{ backgroundColor: category.color }}
+                        style={{ backgroundColor: color }}
                       >
                         <CategoryIcon className="h-5 w-5" />
                       </div>
@@ -363,6 +500,15 @@ export function CategoryManager() {
                         <span className="font-medium truncate block">{category.name}</span>
                         <span className={`text-xs ${type.color} opacity-70`}>{type.label}</span>
                       </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-all duration-300 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl"
+                        onClick={() => openEditDialog(category)}
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </Button>
 
                       <Button
                         variant="ghost"
@@ -392,6 +538,88 @@ export function CategoryManager() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!editingCategory} onOpenChange={(open) => !open && setEditingCategory(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Categoria</DialogTitle>
+            <DialogDescription>Altere os detalhes da categoria</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Nome da categoria" />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={editType} onValueChange={(v) => setEditType(v as TransactionType)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      <div className="flex items-center gap-2">
+                        <t.icon className={`h-4 w-4 ${t.color}`} />
+                        <span>{t.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Ícone</Label>
+              <div className="flex flex-wrap gap-2 p-3 rounded-xl bg-muted max-h-32 overflow-y-auto">
+                {CATEGORY_ICONS.map((iconItem) => {
+                  const IconComp = iconItem.icon
+                  return (
+                    <button
+                      key={iconItem.id}
+                      type="button"
+                      onClick={() => setEditIcon(iconItem.id)}
+                      className={`h-9 w-9 rounded-lg flex items-center justify-center transition-all ${
+                        editIcon === iconItem.id
+                          ? "bg-primary text-primary-foreground scale-110"
+                          : "bg-background hover:bg-muted-foreground/10"
+                      }`}
+                      title={iconItem.label}
+                    >
+                      <IconComp className="h-4 w-4" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Cor</Label>
+              <div className="flex flex-wrap gap-2">
+                {COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setEditColor(c.id)}
+                    className={`h-8 w-8 rounded-full transition-all ${
+                      editColor === c.id ? "ring-2 ring-offset-2 ring-primary scale-110" : "hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: c.id }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditingCategory(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleEdit} disabled={isEditing || !editName.trim()}>
+              {isEditing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Guardar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

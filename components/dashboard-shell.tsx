@@ -50,7 +50,7 @@ import type { User } from "@supabase/supabase-js"
 import { BudgetAlerts } from "@/components/notifications/budget-alerts"
 import { BudgetToastNotifications } from "@/components/notifications/toast-notifications"
 import { CurrencySelector } from "@/components/settings/currency-selector"
-import { MultiAgentChatbot } from "@/components/chatbot/multi-agent-chatbot"
+import { AIChatbot } from "@/components/chatbot/ai-chatbot"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { useTheme } from "next-themes"
@@ -582,7 +582,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
             </Button>
           </SheetTrigger>
           <SheetContent side="right" className="w-[420px] sm:w-[480px] p-0">
-            <MultiAgentChatbot onClose={() => setIsChatOpen(false)} />
+            <AIChatbot onClose={() => setIsChatOpen(false)} />
           </SheetContent>
         </Sheet>
       </div>

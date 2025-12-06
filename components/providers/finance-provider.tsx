@@ -977,6 +977,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const updateCategory = async (id: string, updates: Partial<Omit<Category, "id">>) => {
+    if (!userId) return
+
+    try {
+      const { error } = await supabase
+        .from("categories")
+        .update({
+          name: updates.name,
+          type: updates.type,
+          color: updates.color,
+          icon: updates.icon,
+          budget: updates.budget,
+        })
+        .eq("id", id)
+
+      if (error) throw error
+
+      setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)))
+    } catch (error) {
+      console.error("[v0] Failed to update category:", error)
+    }
+  }
+
   const updateBudget = (categoryId: string, limit: number) => {
     setBudgets((prev) => {
       const existing = prev.find((b) => b.categoryId === categoryId)
@@ -1508,6 +1531,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         isLoading,
         addCategory,
         deleteCategory,
+        updateCategory, // Add updateCategory to context value
         userId,
         refreshData: loadData,
         rules,

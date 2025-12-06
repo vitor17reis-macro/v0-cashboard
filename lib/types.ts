@@ -130,3 +130,45 @@ export interface AutoRule {
   executionCount: number
   executions?: RuleExecution[]
 }
+
+export interface FinanceContextType {
+  transactions: Transaction[]
+  filteredTransactions: Transaction[]
+  categories: Category[]
+  budgets: Budget[]
+  accounts: Account[]
+  goals: Goal[]
+  period: Period
+  setPeriod: (period: Period) => void
+  addTransaction: (transaction: Omit<Transaction, "id">) => Promise<void>
+  deleteTransaction: (id: string) => Promise<void>
+  reverseTransaction: (id: string) => Promise<void>
+  updateBudget: (categoryId: string, limit: number) => void
+  addAccount: (account: Omit<Account, "id">) => Promise<void>
+  updateAccount: (id: string, updates: Partial<Account>) => Promise<void>
+  deleteAccount: (id: string) => Promise<void>
+  addGoal: (goal: Omit<Goal, "id">) => Promise<void>
+  updateGoal: (id: string, updates: Partial<Goal>) => Promise<void>
+  deleteGoal: (id: string) => Promise<void>
+  getSummary: () => {
+    totalIncome: number
+    totalExpense: number
+    totalInvestment: number
+    totalSavings: number
+    balance: number
+    totalNetWorth: number
+    savingsRate: number
+  }
+  getBudgetStatus: (categoryId: string) => { spent: number; limit: number; percentage: number }
+  isLoading: boolean
+  addCategory: (category: Omit<Category, "id">) => Promise<void>
+  deleteCategory: (id: string) => Promise<void>
+  updateCategory: (id: string, updates: Partial<Omit<Category, "id">>) => Promise<void>
+  userId: string | null
+  refreshData: () => Promise<void>
+  rules: AutoRule[]
+  addRule: (rule: Omit<AutoRule, "id" | "executionCount">) => void
+  updateRule: (id: string, updates: Partial<AutoRule>) => void
+  deleteRule: (id: string) => void
+  executeRule: (ruleId: string) => Promise<void>
+}
