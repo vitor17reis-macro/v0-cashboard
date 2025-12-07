@@ -1,7 +1,6 @@
 "use client"
-
-import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
+import { useChat } from "@ai-sdk/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -17,16 +16,11 @@ import {
   GraduationCap,
   HelpCircle,
   ChevronDown,
+  Calculator,
+  RefreshCw,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { createBrowserClient } from "@supabase/ssr"
-
-interface Message {
-  id: string
-  role: "user" | "assistant"
-  content: string
-  toolResults?: any[]
-}
 
 interface AIChatbotProps {
   onClose?: () => void
@@ -79,11 +73,16 @@ const topicQuestions = {
 
 export function AIChatbot({ onClose }: AIChatbotProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: `Olá! Sou o **CashBot**, o teu assistente financeiro inteligente.
+  const [userId, setUserId] = useState<string | null>(null)
+
+  const { messages, input, handleInputChange, handleSubmit, isLoading, setInput, append, reload, error } = useChat({
+    api: "/api/chat",
+    body: { userId },
+    initialMessages: [
+      {
+        id: "welcome",
+        role: "assistant",
+        content: `Olá! Sou o **CashBot**, o teu assistente financeiro inteligente.
 
 Tenho acesso aos teus dados financeiros e posso:
 • **Analisar** as tuas finanças em tempo real
@@ -93,11 +92,12 @@ Tenho acesso aos teus dados financeiros e posso:
 • **Ensinar** conceitos de investimento
 
 Escolhe um tema acima ou pergunta-me qualquer coisa!`,
+      },
+    ],
+    onError: (err) => {
+      console.error("[v0] Chat error:", err)
     },
-  ])
-  const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [userId, setUserId] = useState<string | null>(null)
+  })
 
   useEffect(() => {
     const supabase = createBrowserClient(
@@ -124,127 +124,12 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
     scrollToBottom()
   }, [messages])
 
-  const sendMessage = async (messageText: string) => {
-    if (!messageText.trim() || isLoading) return
-
-    const userMessage: Message = {
-      id: `user-${Date.now()}`,
+  const sendQuickMessage = async (text: string) => {
+    if (isLoading) return
+    await append({
       role: "user",
-      content: messageText.trim(),
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-    setInput("")
-    setIsLoading(true)
-
-    const assistantMessage: Message = {
-      id: `assistant-${Date.now()}`,
-      role: "assistant",
-      content: "",
-    }
-    setMessages((prev) => [...prev, assistantMessage])
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages.filter((m) => m.id !== "welcome"), userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          userId: userId,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error("No reader available")
-      }
-
-      const decoder = new TextDecoder()
-      let fullContent = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split("\n")
-
-        for (const line of lines) {
-          // Parse text content (format: 0:"text")
-          if (line.startsWith("0:")) {
-            try {
-              const textContent = JSON.parse(line.slice(2))
-              if (typeof textContent === "string") {
-                fullContent += textContent
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fullContent } : m)),
-                )
-                scrollToBottom()
-              }
-            } catch {
-              // Try to extract text directly if JSON parse fails
-              const text = line.slice(2).replace(/^"|"$/g, "")
-              if (text && text !== "undefined") {
-                fullContent += text
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fullContent } : m)),
-                )
-                scrollToBottom()
-              }
-            }
-          }
-          // Handle tool call results (format: 9: or a:)
-          else if (line.startsWith("9:") || line.startsWith("a:")) {
-            try {
-              const toolData = JSON.parse(line.slice(2))
-              console.log("[v0] Tool result:", toolData)
-            } catch {
-              // Ignore parse errors for tool data
-            }
-          }
-        }
-      }
-
-      if (!fullContent) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMessage.id
-              ? {
-                  ...m,
-                  content: "Desculpa, não consegui processar a tua pergunta. Tenta reformular ou pergunta outra coisa.",
-                }
-              : m,
-          ),
-        )
-      }
-    } catch (error) {
-      console.error("[v0] Chat error:", error)
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantMessage.id
-            ? {
-                ...m,
-                content:
-                  "Ocorreu um erro ao processar o teu pedido. Por favor verifica a tua conexão e tenta novamente.",
-              }
-            : m,
-        ),
-      )
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    sendMessage(input)
+      content: text,
+    })
   }
 
   const quickActions = [
@@ -256,7 +141,49 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
     { icon: HelpCircle, label: "Ajuda", topic: "ajuda", color: "text-gray-500" },
   ]
 
+  const renderMessageContent = (message: any) => {
+    // AI SDK v5 uses parts
+    if (message.parts && message.parts.length > 0) {
+      return message.parts.map((part: any, index: number) => {
+        if (part.type === "text") {
+          return <div key={index}>{renderFormattedText(part.text)}</div>
+        }
+        if (part.type === "tool-invocation") {
+          const { toolName, state, result, args } = part.toolInvocation
+          if (state === "result" && result) {
+            return (
+              <div key={index} className="mt-2 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <div className="flex items-center gap-2 text-xs text-primary mb-2">
+                  <Calculator className="h-3 w-3" />
+                  <span className="font-medium">Cálculo: {toolName}</span>
+                </div>
+                <pre className="text-xs whitespace-pre-wrap">{JSON.stringify(result, null, 2)}</pre>
+              </div>
+            )
+          }
+          if (state === "call") {
+            return (
+              <div key={index} className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>A executar {toolName}...</span>
+              </div>
+            )
+          }
+        }
+        return null
+      })
+    }
+
+    // Fallback to content
+    if (message.content) {
+      return renderFormattedText(message.content)
+    }
+
+    return null
+  }
+
   const renderFormattedText = (text: string) => {
+    if (!text) return null
     return text.split("\n").map((line, i) => {
       // Handle bullet points
       if (line.startsWith("• ") || line.startsWith("- ")) {
@@ -298,11 +225,24 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
             <p className="text-xs text-muted-foreground">Assistente Financeiro IA</p>
           </div>
         </div>
-        {onClose && (
-          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-xl">
-            <XIcon className="h-4 w-4" />
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {error && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => reload()}
+              className="rounded-xl"
+              title="Tentar novamente"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
+          {onClose && (
+            <Button variant="ghost" size="icon" onClick={onClose} className="rounded-xl">
+              <XIcon className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Quick Actions */}
@@ -326,7 +266,11 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-72">
                 {topicQuestions[action.topic as keyof typeof topicQuestions].map((question, idx) => (
-                  <DropdownMenuItem key={idx} onClick={() => sendMessage(question)} className="cursor-pointer text-sm">
+                  <DropdownMenuItem
+                    key={idx}
+                    onClick={() => sendQuickMessage(question)}
+                    className="cursor-pointer text-sm"
+                  >
                     {question}
                   </DropdownMenuItem>
                 ))}
@@ -353,14 +297,16 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
                     : "bg-muted rounded-bl-md"
                 }`}
               >
-                {message.content ? (
-                  <div className="text-sm whitespace-pre-wrap">{renderFormattedText(message.content)}</div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-muted-foreground">A analisar...</span>
-                  </div>
-                )}
+                <div className="text-sm whitespace-pre-wrap">{renderMessageContent(message)}</div>
+                {message.role === "assistant" &&
+                  isLoading &&
+                  message.id === messages[messages.length - 1]?.id &&
+                  !message.content && (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">A analisar...</span>
+                    </div>
+                  )}
               </div>
               {message.role === "user" && (
                 <div className="h-8 w-8 rounded-xl bg-muted flex items-center justify-center shrink-0">
@@ -369,6 +315,20 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
               )}
             </div>
           ))}
+
+          {/* Error message */}
+          {error && (
+            <div className="flex gap-3 justify-start">
+              <div className="h-8 w-8 rounded-xl bg-destructive/20 flex items-center justify-center shrink-0">
+                <XIcon className="h-4 w-4 text-destructive" />
+              </div>
+              <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-destructive/10 border border-destructive/20 rounded-bl-md">
+                <p className="text-sm text-destructive">
+                  Ocorreu um erro ao processar o teu pedido. Clica no botão de atualizar para tentar novamente.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -377,13 +337,13 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
         <form onSubmit={handleSubmit} className="flex gap-2">
           <Input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             placeholder="Pergunta-me qualquer coisa sobre finanças..."
             disabled={isLoading}
             className="rounded-xl"
           />
           <Button type="submit" size="icon" disabled={!input.trim() || isLoading} className="rounded-xl shrink-0">
-            <SendIcon className="h-4 w-4" />
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendIcon className="h-4 w-4" />}
           </Button>
         </form>
         <p className="text-[10px] text-muted-foreground text-center mt-2">
