@@ -24,128 +24,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import dynamic from "next/dynamic"
-
-const RechartsComponents = dynamic(
-  () =>
-    import("recharts").then((mod) => ({
-      default: ({ children, ...props }: any) => <>{children}</>,
-      BarChart: mod.BarChart,
-      Bar: mod.Bar,
-      XAxis: mod.XAxis,
-      YAxis: mod.YAxis,
-      CartesianGrid: mod.CartesianGrid,
-      Tooltip: mod.Tooltip,
-      ResponsiveContainer: mod.ResponsiveContainer,
-      Legend: mod.Legend,
-      PieChart: mod.PieChart,
-      Pie: mod.Pie,
-      Cell: mod.Cell,
-      AreaChart: mod.AreaChart,
-      Area: mod.Area,
-    })),
-  { ssr: false },
-)
-
-// Simple charts without recharts for reliability
-function SimpleBarChart({ data }: { data: { name: string; Receitas: number; Despesas: number }[] }) {
-  const maxValue = Math.max(...data.flatMap((d) => [d.Receitas, d.Despesas]), 1)
-
-  return (
-    <div className="space-y-3">
-      {data.map((item) => (
-        <div key={item.name} className="space-y-1">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">{item.name}</span>
-            <div className="flex gap-4 text-xs">
-              <span className="text-emerald-500">+€{item.Receitas.toFixed(0)}</span>
-              <span className="text-red-500">-€{item.Despesas.toFixed(0)}</span>
-            </div>
-          </div>
-          <div className="flex gap-1 h-6">
-            <div
-              className="bg-emerald-500 rounded-sm transition-all"
-              style={{ width: `${(item.Receitas / maxValue) * 50}%` }}
-            />
-            <div
-              className="bg-red-500 rounded-sm transition-all"
-              style={{ width: `${(item.Despesas / maxValue) * 50}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function SimplePieChart({ data }: { data: { name: string; value: number; color: string; percentage: string }[] }) {
-  const total = data.reduce((acc, d) => acc + d.value, 0)
-
-  return (
-    <div className="space-y-3">
-      {data.map((item, index) => (
-        <div key={item.name} className="flex items-center gap-3">
-          <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium truncate">{item.name}</span>
-              <span className="text-sm text-muted-foreground">€{item.value.toFixed(2)}</span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
-              />
-            </div>
-          </div>
-          <Badge variant="outline" className="text-xs flex-shrink-0">
-            {item.percentage}%
-          </Badge>
-        </div>
-      ))}
-      {data.length === 0 && <p className="text-center text-muted-foreground py-4">Sem dados disponíveis</p>}
-    </div>
-  )
-}
-
-function SimpleAreaChart({ data }: { data: { name: string; Receitas: number; Despesas: number; Saldo: number }[] }) {
-  const maxValue = Math.max(...data.flatMap((d) => [d.Receitas, d.Despesas, Math.abs(d.Saldo)]), 1)
-
-  return (
-    <div className="space-y-4">
-      {data.map((item) => (
-        <div key={item.name} className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-medium">{item.name}</span>
-            <span className={`text-sm font-bold ${item.Saldo >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-              {item.Saldo >= 0 ? "+" : ""}€{item.Saldo.toFixed(0)}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Receitas</div>
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 rounded-full"
-                  style={{ width: `${(item.Receitas / maxValue) * 100}%` }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Despesas</div>
-              <div className="h-3 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-red-500 rounded-full"
-                  style={{ width: `${(item.Despesas / maxValue) * 100}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
 
 const COLORS = {
   income: "#22c55e",
@@ -157,8 +35,13 @@ const COLORS = {
 }
 
 export function ReportsView() {
-  const { transactions, accounts, goals } = useFinance()
-  const [period, setPeriod] = useState("year")
+  const { transactions, accounts, goals, categories } = useFinance()
+  const [selectedPeriod, setSelectedPeriod] = useState("year")
+
+  const getCategoryName = (categoryId: string): string => {
+    const category = categories.find((c) => c.id === categoryId)
+    return category?.name || categoryId
+  }
 
   // Calculate yearly data
   const yearlyData = useMemo(() => {
@@ -176,13 +59,13 @@ export function ReportsView() {
 
       return {
         name: format(month, "MMM", { locale: pt }),
-        Receitas: income,
-        Despesas: expenses,
+        receitas: income,
+        despesas: expenses,
       }
     })
   }, [transactions])
 
-  // Calculate category breakdown
+  // Calculate category breakdown with proper names
   const categoryData = useMemo(() => {
     const now = new Date()
     const start = startOfMonth(now)
@@ -194,21 +77,27 @@ export function ReportsView() {
     })
 
     const totalExpenses = monthExpenses.reduce((acc, t) => acc + t.amount, 0)
-    const byCategory: Record<string, number> = {}
+    const byCategory: Record<string, { amount: number; name: string }> = {}
+
     monthExpenses.forEach((t) => {
-      const cat = t.category || "Outros"
-      byCategory[cat] = (byCategory[cat] || 0) + t.amount
+      const catId = t.category || "outros"
+      const catName = getCategoryName(catId)
+      if (!byCategory[catId]) {
+        byCategory[catId] = { amount: 0, name: catName }
+      }
+      byCategory[catId].amount += t.amount
     })
 
     return Object.entries(byCategory)
-      .sort(([, a], [, b]) => b - a)
-      .map(([name, value], index) => ({
-        name,
-        value,
+      .sort(([, a], [, b]) => b.amount - a.amount)
+      .map(([id, data], index) => ({
+        id,
+        name: data.name,
+        value: data.amount,
         color: COLORS.categories[index % COLORS.categories.length],
-        percentage: totalExpenses > 0 ? ((value / totalExpenses) * 100).toFixed(1) : "0",
+        percentage: totalExpenses > 0 ? ((data.amount / totalExpenses) * 100).toFixed(1) : "0",
       }))
-  }, [transactions])
+  }, [transactions, categories])
 
   // Calculate trends (last 6 months)
   const trendData = useMemo(() => {
@@ -230,9 +119,9 @@ export function ReportsView() {
 
       months.push({
         name: format(month, "MMM", { locale: pt }),
-        Receitas: income,
-        Despesas: expenses,
-        Saldo: income - expenses,
+        receitas: income,
+        despesas: expenses,
+        saldo: income - expenses,
       })
     }
 
@@ -290,7 +179,7 @@ export function ReportsView() {
     }
   }, [transactions, accounts, goals])
 
-  // Top expenses
+  // Top expenses with category names
   const topExpenses = useMemo(() => {
     const now = new Date()
     const start = startOfMonth(now)
@@ -303,7 +192,15 @@ export function ReportsView() {
       })
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5)
-  }, [transactions])
+      .map((t) => ({
+        ...t,
+        categoryName: getCategoryName(t.category),
+      }))
+  }, [transactions, categories])
+
+  // Get max values for charts
+  const maxYearlyValue = Math.max(...yearlyData.flatMap((d) => [d.receitas, d.despesas]), 1)
+  const maxTrendValue = Math.max(...trendData.flatMap((d) => [d.receitas, d.despesas]), 1)
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -314,7 +211,7 @@ export function ReportsView() {
           <p className="text-muted-foreground">Análise detalhada da sua saúde financeira</p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={period} onValueChange={setPeriod}>
+          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-[140px]">
               <Calendar className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Período" />
@@ -338,17 +235,17 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Receitas do Mês</p>
-                <p className="text-2xl font-bold text-emerald-500">€{kpis.thisIncome.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-emerald-600">€{kpis.thisIncome.toFixed(2)}</p>
               </div>
               <div
-                className={`flex items-center gap-1 text-xs ${kpis.incomeChange >= 0 ? "text-emerald-500" : "text-red-500"}`}
+                className={`flex items-center gap-1 text-xs ${kpis.incomeChange >= 0 ? "text-emerald-600" : "text-red-500"}`}
               >
                 {kpis.incomeChange >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                 {Math.abs(kpis.incomeChange).toFixed(1)}%
               </div>
             </div>
             <div className="mt-2">
-              <TrendingUp className="h-4 w-4 text-emerald-500" />
+              <TrendingUp className="h-4 w-4 text-emerald-600" />
             </div>
           </CardContent>
         </Card>
@@ -361,7 +258,7 @@ export function ReportsView() {
                 <p className="text-2xl font-bold text-red-500">€{kpis.thisExpenses.toFixed(2)}</p>
               </div>
               <div
-                className={`flex items-center gap-1 text-xs ${kpis.expenseChange <= 0 ? "text-emerald-500" : "text-red-500"}`}
+                className={`flex items-center gap-1 text-xs ${kpis.expenseChange <= 0 ? "text-emerald-600" : "text-red-500"}`}
               >
                 {kpis.expenseChange <= 0 ? (
                   <ArrowDownRight className="h-3 w-3" />
@@ -382,14 +279,14 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Taxa de Poupança</p>
-                <p className="text-2xl font-bold text-amber-500">{kpis.savingsRate.toFixed(1)}%</p>
+                <p className="text-2xl font-bold text-amber-600">{kpis.savingsRate.toFixed(1)}%</p>
               </div>
               <Badge variant={kpis.savingsRate >= 20 ? "default" : "secondary"} className="text-xs">
                 {kpis.savingsRate >= 20 ? "Excelente" : kpis.savingsRate >= 10 ? "Bom" : "Melhorar"}
               </Badge>
             </div>
             <div className="mt-2">
-              <PiggyBank className="h-4 w-4 text-amber-500" />
+              <PiggyBank className="h-4 w-4 text-amber-600" />
             </div>
           </CardContent>
         </Card>
@@ -399,20 +296,20 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Progresso Metas</p>
-                <p className="text-2xl font-bold text-blue-500">{kpis.goalsProgress.toFixed(0)}%</p>
+                <p className="text-2xl font-bold text-blue-600">{kpis.goalsProgress.toFixed(0)}%</p>
               </div>
               <Badge variant="outline" className="text-xs">
                 {goals.length} metas
               </Badge>
             </div>
             <div className="mt-2">
-              <Target className="h-4 w-4 text-blue-500" />
+              <Target className="h-4 w-4 text-blue-600" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
           <TabsTrigger value="overview" className="gap-2">
@@ -442,7 +339,39 @@ export function ReportsView() {
                 <CardDescription>Comparativo mensal de receitas e despesas</CardDescription>
               </CardHeader>
               <CardContent>
-                <SimpleBarChart data={yearlyData} />
+                <div className="space-y-3">
+                  {yearlyData.map((item) => (
+                    <div key={item.name} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium w-12">{item.name}</span>
+                        <div className="flex gap-4 text-xs">
+                          <span className="text-emerald-600">+€{item.receitas.toFixed(0)}</span>
+                          <span className="text-red-500">-€{item.despesas.toFixed(0)}</span>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 h-5">
+                        <div
+                          className="bg-emerald-500 rounded-sm transition-all duration-500"
+                          style={{ width: `${(item.receitas / maxYearlyValue) * 50}%` }}
+                        />
+                        <div
+                          className="bg-red-500 rounded-sm transition-all duration-500"
+                          style={{ width: `${(item.despesas / maxYearlyValue) * 50}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-4 mt-4 pt-4 border-t text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm bg-emerald-500" />
+                    <span className="text-muted-foreground">Receitas</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-sm bg-red-500" />
+                    <span className="text-muted-foreground">Despesas</span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -467,11 +396,11 @@ export function ReportsView() {
                 <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                      <PiggyBank className="h-5 w-5 text-amber-500" />
+                      <PiggyBank className="h-5 w-5 text-amber-600" />
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Poupança</p>
-                      <p className="font-bold text-amber-500">€{kpis.totalSavings.toFixed(2)}</p>
+                      <p className="font-bold text-amber-600">€{kpis.totalSavings.toFixed(2)}</p>
                     </div>
                   </div>
                   <Badge variant="outline">
@@ -482,11 +411,11 @@ export function ReportsView() {
                 <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                      <TrendingUp className="h-5 w-5 text-blue-500" />
+                      <TrendingUp className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Investimentos</p>
-                      <p className="font-bold text-blue-500">€{kpis.totalInvestments.toFixed(2)}</p>
+                      <p className="font-bold text-blue-600">€{kpis.totalInvestments.toFixed(2)}</p>
                     </div>
                   </div>
                   <Badge variant="outline">
@@ -511,7 +440,38 @@ export function ReportsView() {
               <CardDescription>Evolução das receitas, despesas e saldo líquido</CardDescription>
             </CardHeader>
             <CardContent>
-              <SimpleAreaChart data={trendData} />
+              <div className="space-y-4">
+                {trendData.map((item) => (
+                  <div key={item.name} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{item.name}</span>
+                      <span className={`text-sm font-bold ${item.saldo >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                        {item.saldo >= 0 ? "+" : ""}€{item.saldo.toFixed(0)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1">Receitas: €{item.receitas.toFixed(0)}</div>
+                        <div className="h-3 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                            style={{ width: `${(item.receitas / maxTrendValue) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1">Despesas: €{item.despesas.toFixed(0)}</div>
+                        <div className="h-3 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-red-500 rounded-full transition-all duration-500"
+                            style={{ width: `${(item.despesas / maxTrendValue) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -524,7 +484,31 @@ export function ReportsView() {
               <CardDescription>Distribuição das despesas deste mês</CardDescription>
             </CardHeader>
             <CardContent>
-              <SimplePieChart data={categoryData} />
+              <div className="space-y-3">
+                {categoryData.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium truncate">{item.name}</span>
+                        <span className="text-sm text-muted-foreground">€{item.value.toFixed(2)}</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
+                        />
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-xs flex-shrink-0">
+                      {item.percentage}%
+                    </Badge>
+                  </div>
+                ))}
+                {categoryData.length === 0 && (
+                  <p className="text-center text-muted-foreground py-8">Sem despesas registadas este mês</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -547,7 +531,7 @@ export function ReportsView() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{expense.description}</p>
                         <p className="text-xs text-muted-foreground">
-                          {expense.category} • {format(new Date(expense.date), "d MMM", { locale: pt })}
+                          {expense.categoryName} • {format(new Date(expense.date), "d MMM", { locale: pt })}
                         </p>
                       </div>
                       <p className="font-bold text-red-500">€{expense.amount.toFixed(2)}</p>
@@ -579,7 +563,7 @@ export function ReportsView() {
                         </div>
                         <div className="h-3 bg-muted rounded-full overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all"
+                            className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-500"
                             style={{ width: `${Math.min(progress, 100)}%` }}
                           />
                         </div>
