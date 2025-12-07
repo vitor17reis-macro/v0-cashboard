@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useRef, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +17,6 @@ import {
   GraduationCap,
   HelpCircle,
   ChevronDown,
-  RefreshCw,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { createBrowserClient } from "@supabase/ssr"
@@ -54,7 +52,7 @@ const topicQuestions = {
     "O que são ETFs e como funcionam?",
     "Quanto do meu salário devo investir?",
     "Qual a diferença entre ações e fundos?",
-    "Simula investir 200€/mês durante 20 anos a 7%",
+    "Simula investir 200€/mês durante 20 anos",
   ],
   poupar: [
     "Onde posso cortar despesas?",
@@ -79,6 +77,11 @@ const topicQuestions = {
   ],
 }
 
+function matchesAny(text: string, keywords: string[]): boolean {
+  const lowerText = text.toLowerCase()
+  return keywords.some((keyword) => lowerText.includes(keyword.toLowerCase()))
+}
+
 export function AIChatbot({ onClose }: AIChatbotProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [userId, setUserId] = useState<string | null>(null)
@@ -90,7 +93,7 @@ export function AIChatbot({ onClose }: AIChatbotProps) {
 
 Tenho acesso aos teus dados financeiros e posso:
 • **Analisar** as tuas finanças em tempo real
-• **Calcular** juros compostos e poupanças
+• **Calcular** juros compostos e simulações
 • **Sugerir** onde cortar despesas
 • **Planear** como atingir metas mais rápido
 • **Ensinar** conceitos de investimento
@@ -101,8 +104,6 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [monthlyExpenses, setMonthlyExpenses] = useState<number>(0)
-  const [monthlyIncome, setMonthlyIncome] = useState<number>(0)
 
   const { transactions, accounts, goals, categories } = useFinance()
 
@@ -111,11 +112,8 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     )
-
     supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) {
-        setUserId(data.user.id)
-      }
+      if (data?.user) setUserId(data.user.id)
     })
   }, [])
 
@@ -131,17 +129,22 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
     scrollToBottom()
   }, [messages, scrollToBottom])
 
-  // Generate response based on user data and question
   const generateResponse = useCallback(
     (question: string): string => {
-      const q = question.toLowerCase()
+      const q = question.toLowerCase().trim()
 
-      // Calculate financial data
+      // Calculate all financial data upfront
       const totalBalance = accounts.reduce((acc, a) => acc + (a.balance || 0), 0)
-      const savingsAccounts = accounts.filter((a) => a.type === "savings" || a.type === "poupanca")
+      const savingsAccounts = accounts.filter(
+        (a) => a.type === "savings" || a.type === "poupanca" || a.type === "poupança",
+      )
       const investmentAccounts = accounts.filter((a) => a.type === "investment" || a.type === "investimento")
+      const checkingAccounts = accounts.filter(
+        (a) => a.type === "checking" || a.type === "corrente" || a.type === "ordem",
+      )
       const totalSavings = savingsAccounts.reduce((acc, a) => acc + (a.balance || 0), 0)
       const totalInvestments = investmentAccounts.reduce((acc, a) => acc + (a.balance || 0), 0)
+      const totalChecking = checkingAccounts.reduce((acc, a) => acc + (a.balance || 0), 0)
 
       const now = new Date()
       const thisMonthTrans = transactions.filter((t) => {
@@ -149,13 +152,16 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
       })
 
-      const monthlyIncomeValue = thisMonthTrans.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0)
-      const monthlyExpensesValue = thisMonthTrans
-        .filter((t) => t.type === "expense")
-        .reduce((acc, t) => acc + t.amount, 0)
+      const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const lastMonthTrans = transactions.filter((t) => {
+        const d = new Date(t.date)
+        return d.getMonth() === lastMonthDate.getMonth() && d.getFullYear() === lastMonthDate.getFullYear()
+      })
 
-      setMonthlyExpenses(monthlyExpensesValue)
-      setMonthlyIncome(monthlyIncomeValue)
+      const monthlyIncome = thisMonthTrans.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0)
+      const monthlyExpenses = thisMonthTrans.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0)
+      const lastMonthExpenses = lastMonthTrans.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0)
+      const lastMonthIncome = lastMonthTrans.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0)
 
       // Group expenses by category
       const expensesByCategory: Record<string, number> = {}
@@ -167,479 +173,981 @@ Escolhe um tema acima ou pergunta-me qualquer coisa!`,
         })
       const sortedCategories = Object.entries(expensesByCategory).sort(([, a], [, b]) => b - a)
 
-      // Saldo questions
-      if (q.includes("saldo") && (q.includes("total") || q.includes("atual"))) {
+      const savingsRate = monthlyIncome > 0 ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100 : 0
+      const monthlyBalance = monthlyIncome - monthlyExpenses
+
+      // ====== SALDO & CONTAS ======
+      if (matchesAny(q, ["saldo total", "quanto tenho", "património", "dinheiro total", "valor total"])) {
+        const savingsPercent = totalBalance > 0 ? ((totalSavings / totalBalance) * 100).toFixed(0) : 0
+        const investPercent = totalBalance > 0 ? ((totalInvestments / totalBalance) * 100).toFixed(0) : 0
+
         return `**Resumo do teu património:**
 
-• **Saldo Total:** €${totalBalance.toFixed(2)}
-• **Poupanças:** €${totalSavings.toFixed(2)}
-• **Investimentos:** €${totalInvestments.toFixed(2)}
+💰 **Saldo Total:** €${totalBalance.toFixed(2)}
+
+**Distribuição:**
+• Conta Corrente: €${totalChecking.toFixed(2)}
+• Poupanças: €${totalSavings.toFixed(2)} (${savingsPercent}%)
+• Investimentos: €${totalInvestments.toFixed(2)} (${investPercent}%)
 
 **Contas:**
 ${accounts.map((a) => `• ${a.name}: €${(a.balance || 0).toFixed(2)}`).join("\n")}
 
-${totalSavings > totalInvestments ? "Tens mais em poupanças do que investimentos. Considera diversificar!" : "Boa distribuição entre poupanças e investimentos!"}`
+${
+  totalInvestments === 0 && totalBalance > 1000
+    ? "💡 **Dica:** Tens dinheiro parado! Considera investir parte em ETFs para combater a inflação."
+    : totalSavings > totalInvestments * 3
+      ? "💡 **Dica:** Tens muito em poupanças vs investimentos. Considera diversificar!"
+      : "✅ Boa distribuição de ativos!"
+}`
       }
 
-      if (q.includes("cada conta") || q.includes("quanto tenho")) {
-        return `**Saldo de cada conta:**
+      if (matchesAny(q, ["cada conta", "minhas contas", "contas tenho", "lista de contas", "ver contas"])) {
+        return `**As tuas contas:**
 
-${accounts.map((a) => `• **${a.name}** (${a.type}): €${(a.balance || 0).toFixed(2)}`).join("\n")}
+${accounts
+  .map((a) => {
+    const icon =
+      a.type === "savings" || a.type === "poupanca"
+        ? "🐷"
+        : a.type === "investment" || a.type === "investimento"
+          ? "📈"
+          : "💳"
+    return `${icon} **${a.name}** (${a.type})
+   Saldo: €${(a.balance || 0).toFixed(2)}`
+  })
+  .join("\n\n")}
 
 **Total:** €${totalBalance.toFixed(2)}`
       }
 
-      if (q.includes("gastei") && q.includes("mês")) {
-        return `**Gastos deste mês:**
+      if (matchesAny(q, ["gastei este mês", "despesas do mês", "gastos mensais", "quanto gastei", "gastos este mês"])) {
+        const comparison =
+          lastMonthExpenses > 0 ? (((monthlyExpenses - lastMonthExpenses) / lastMonthExpenses) * 100).toFixed(0) : 0
 
-• **Total de despesas:** €${monthlyExpenses.toFixed(2)}
-• **Total de receitas:** €${monthlyIncome.toFixed(2)}
-• **Balanço:** €${(monthlyIncome - monthlyExpenses).toFixed(2)}
+        return `**Gastos de ${now.toLocaleString("pt-PT", { month: "long" })}:**
 
-**Por categoria:**
+📊 **Resumo:**
+• Despesas: €${monthlyExpenses.toFixed(2)}
+• Receitas: €${monthlyIncome.toFixed(2)}
+• Balanço: €${monthlyBalance.toFixed(2)} ${monthlyBalance >= 0 ? "✅" : "⚠️"}
+
+**Comparação com mês anterior:**
+${
+  Number(comparison) > 0
+    ? `📈 Gastaste +${comparison}% mais que o mês passado`
+    : Number(comparison) < 0
+      ? `📉 Gastaste ${Math.abs(Number(comparison))}% menos que o mês passado! 👏`
+      : "Gastos iguais ao mês anterior"
+}
+
+**Top categorias:**
 ${sortedCategories
   .slice(0, 5)
-  .map(([cat, val]) => `• ${cat}: €${val.toFixed(2)}`)
+  .map(([cat, val], i) => `${i + 1}. ${cat}: €${val.toFixed(2)} (${((val / monthlyExpenses) * 100).toFixed(0)}%)`)
   .join("\n")}
 
-${monthlyExpenses > monthlyIncome ? "⚠️ Atenção: Estás a gastar mais do que ganhas este mês!" : "✅ Estás dentro do orçamento!"}`
-      }
-
-      if (q.includes("maior despesa")) {
-        const biggestExpense = thisMonthTrans.filter((t) => t.type === "expense").sort((a, b) => b.amount - a.amount)[0]
-        if (biggestExpense) {
-          return `**Maior despesa recente:**
-
-• **Descrição:** ${biggestExpense.description}
-• **Valor:** €${biggestExpense.amount.toFixed(2)}
-• **Categoria:** ${biggestExpense.category || "Não categorizada"}
-• **Data:** ${new Date(biggestExpense.date).toLocaleDateString("pt-PT")}
-
-${biggestExpense.amount > monthlyIncome * 0.3 ? "Esta despesa representa mais de 30% do teu rendimento mensal. Considera se foi essencial." : ""}`
-        }
-        return "Não encontrei despesas registadas este mês."
-      }
-
-      if (q.includes("gastar mais") || q.includes("mais do que ganho")) {
-        const balance = monthlyIncome - monthlyExpenses
-        const savingsRate = monthlyIncome > 0 ? (balance / monthlyIncome) * 100 : 0
-
-        return `**Análise Receitas vs Despesas:**
-
-• **Receitas:** €${monthlyIncome.toFixed(2)}
-• **Despesas:** €${monthlyExpenses.toFixed(2)}
-• **Diferença:** €${balance.toFixed(2)}
-• **Taxa de poupança:** ${savingsRate.toFixed(1)}%
-
 ${
-  balance < 0
-    ? `⚠️ **Sim, estás a gastar mais do que ganhas!**
-
-Sugestões:
-1. Revê as despesas por categoria
-2. Identifica gastos não essenciais
-3. Define um orçamento por categoria`
-    : `✅ **Não, estás a poupar ${savingsRate.toFixed(1)}% do rendimento!**
-
-${savingsRate >= 20 ? "Excelente! Estás acima da recomendação de 20%." : "Tenta aumentar para pelo menos 20% para atingir metas mais rápido."}`
+  monthlyExpenses > monthlyIncome
+    ? "\n⚠️ **Alerta:** Estás a gastar mais do que ganhas! Revê as despesas."
+    : `\n✅ Estás a poupar €${monthlyBalance.toFixed(2)} este mês (${savingsRate.toFixed(0)}%)`
 }`
       }
 
-      // Metas questions
-      if (q.includes("metas") && (q.includes("como estão") || q.includes("financeiras"))) {
-        if (goals.length === 0) {
-          return "Ainda não tens metas definidas. Cria uma meta na secção de Metas para começar a acompanhar os teus objetivos!"
+      if (matchesAny(q, ["maior despesa", "despesa mais alta", "gastei mais", "maiores gastos"])) {
+        const topExpenses = thisMonthTrans
+          .filter((t) => t.type === "expense")
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 5)
+
+        if (topExpenses.length === 0) {
+          return "Não encontrei despesas registadas este mês. Adiciona transações para eu poder analisar!"
         }
 
-        return `**Estado das tuas metas:**
+        return `**Top 5 maiores despesas do mês:**
+
+${topExpenses
+  .map(
+    (e, i) =>
+      `${i + 1}. **${e.description}** - €${e.amount.toFixed(2)}
+   📁 ${e.category || "Sem categoria"} | 📅 ${new Date(e.date).toLocaleDateString("pt-PT")}`,
+  )
+  .join("\n\n")}
+
+**Total das 5 maiores:** €${topExpenses.reduce((acc, e) => acc + e.amount, 0).toFixed(2)}
+
+${
+  topExpenses[0].amount > monthlyIncome * 0.2
+    ? `\n💡 A maior despesa representa ${((topExpenses[0].amount / monthlyIncome) * 100).toFixed(0)}% do teu rendimento. Considera se foi essencial.`
+    : ""
+}`
+      }
+
+      if (
+        matchesAny(q, [
+          "gastar mais do que ganho",
+          "a gastar demais",
+          "gastos vs receitas",
+          "balanço mensal",
+          "positivo ou negativo",
+        ])
+      ) {
+        const status = monthlyBalance >= 0 ? "positivo" : "negativo"
+
+        return `**Análise Receitas vs Despesas:**
+
+📥 **Receitas:** €${monthlyIncome.toFixed(2)}
+📤 **Despesas:** €${monthlyExpenses.toFixed(2)}
+📊 **Balanço:** €${monthlyBalance.toFixed(2)} (${status})
+💹 **Taxa de poupança:** ${savingsRate.toFixed(1)}%
+
+${
+  monthlyBalance < 0
+    ? `
+⚠️ **Sim, estás a gastar €${Math.abs(monthlyBalance).toFixed(2)} mais do que ganhas!**
+
+**Plano de ação:**
+1. Identifica gastos não essenciais nas categorias maiores
+2. Define um limite máximo por categoria
+3. Usa a regra 50/30/20 como guia
+4. Considera fontes de rendimento extra
+
+**Categorias onde podes cortar:**
+${sortedCategories
+  .slice(0, 3)
+  .map(([cat, val]) => `• ${cat}: €${val.toFixed(2)}`)
+  .join("\n")}
+`
+    : `
+✅ **Parabéns! Estás a poupar €${monthlyBalance.toFixed(2)} por mês!**
+
+${
+  savingsRate >= 20
+    ? "Excelente! Ultrapassas a recomendação de 20%. Considera investir o excedente."
+    : savingsRate >= 10
+      ? "Bom começo! Tenta aumentar gradualmente para 20%."
+      : "Tenta aumentar a taxa de poupança para pelo menos 10-20%."
+}`
+}`
+      }
+
+      // ====== METAS ======
+      if (
+        matchesAny(q, ["metas financeiras", "minhas metas", "objetivos", "como estão as metas", "progresso das metas"])
+      ) {
+        if (goals.length === 0) {
+          return `Ainda não tens metas definidas! 🎯
+
+**Como criar uma meta:**
+1. Vai à secção "Metas" no menu lateral
+2. Clica em "+ Nova Meta"
+3. Define nome, valor objetivo e prazo
+
+**Sugestões de metas:**
+• Fundo de emergência (3-6 meses de despesas)
+• Férias dos sonhos
+• Entrada para casa
+• Reforma antecipada
+
+Ter metas claras aumenta a probabilidade de as atingir em 42%!`
+        }
+
+        const totalGoalTarget = goals.reduce((acc, g) => acc + g.target_amount, 0)
+        const totalGoalCurrent = goals.reduce((acc, g) => acc + g.current_amount, 0)
+        const overallProgress = totalGoalTarget > 0 ? (totalGoalCurrent / totalGoalTarget) * 100 : 0
+
+        return `**Estado das tuas ${goals.length} metas:**
+
+📊 **Progresso geral:** ${overallProgress.toFixed(0)}%
+💰 **Total acumulado:** €${totalGoalCurrent.toFixed(2)} / €${totalGoalTarget.toFixed(2)}
 
 ${goals
   .map((g) => {
     const progress = g.target_amount > 0 ? (g.current_amount / g.target_amount) * 100 : 0
     const remaining = g.target_amount - g.current_amount
-    return `• **${g.name}**
-  Progresso: ${progress.toFixed(1)}% (€${g.current_amount.toFixed(2)} / €${g.target_amount.toFixed(2)})
-  Faltam: €${remaining.toFixed(2)}`
+    const monthsNeeded = monthlyBalance > 0 ? Math.ceil(remaining / monthlyBalance) : "∞"
+    const progressBar = "█".repeat(Math.floor(progress / 10)) + "░".repeat(10 - Math.floor(progress / 10))
+
+    return `**${g.name}**
+${progressBar} ${progress.toFixed(0)}%
+€${g.current_amount.toFixed(2)} / €${g.target_amount.toFixed(2)}
+⏱️ ~${monthsNeeded} meses ao ritmo atual`
   })
   .join("\n\n")}
 
-${goals.some((g) => g.current_amount / g.target_amount >= 0.8) ? "🎉 Tens metas quase concluídas! Continua assim!" : ""}`
+${
+  goals.some((g) => g.current_amount / g.target_amount >= 0.9)
+    ? "\n🎉 Tens metas quase concluídas! O sprint final é o mais importante!"
+    : ""
+}`
       }
 
-      if (q.includes("falta") && q.includes("meta")) {
+      if (matchesAny(q, ["quanto falta", "falta para", "atingir meta", "completar meta"])) {
         if (goals.length === 0) {
-          return "Não tens metas definidas. Cria uma para acompanhar os teus objetivos!"
+          return "Não tens metas definidas. Cria uma na secção Metas para começar a acompanhar!"
         }
 
         return `**Quanto falta para cada meta:**
 
 ${goals
   .map((g) => {
-    const remaining = g.target_amount - g.current_amount
-    const monthsNeeded =
-      monthlyIncome > monthlyExpenses ? Math.ceil(remaining / (monthlyIncome - monthlyExpenses)) : "∞"
-    return `• **${g.name}:** €${remaining.toFixed(2)}
-  ${typeof monthsNeeded === "number" ? `(~${monthsNeeded} meses ao ritmo atual)` : "(precisas poupar mais)"}`
+    const remaining = Math.max(g.target_amount - g.current_amount, 0)
+    const progress = g.target_amount > 0 ? (g.current_amount / g.target_amount) * 100 : 0
+    const monthsNeeded = monthlyBalance > 0 ? Math.ceil(remaining / monthlyBalance) : null
+    const weeksNeeded = monthlyBalance > 0 ? Math.ceil(remaining / (monthlyBalance / 4)) : null
+
+    return `🎯 **${g.name}**
+• Faltam: €${remaining.toFixed(2)}
+• Progresso: ${progress.toFixed(0)}%
+${monthsNeeded ? `• Tempo estimado: ~${monthsNeeded} meses (${weeksNeeded} semanas)` : "• Precisas poupar mais para calcular tempo"}`
   })
-  .join("\n\n")}`
+  .join("\n\n")}
+
+💡 **Dica:** Para acelerar, considera:
+• Cortar 10% em cada categoria de despesa
+• Automatizar transferências no dia do salário
+• Procurar rendimentos extra`
       }
 
-      if (q.includes("priorizar") || q.includes("qual meta")) {
+      if (matchesAny(q, ["priorizar", "qual meta", "meta primeiro", "focar qual"])) {
         if (goals.length === 0) {
           return "Cria algumas metas primeiro para eu poder aconselhar qual priorizar!"
         }
 
+        // Sort by closest to completion
         const sortedGoals = [...goals].sort((a, b) => {
-          const progressA = a.current_amount / a.target_amount
-          const progressB = b.current_amount / b.target_amount
+          const progressA = a.target_amount > 0 ? a.current_amount / a.target_amount : 0
+          const progressB = b.target_amount > 0 ? b.current_amount / b.target_amount : 0
           return progressB - progressA
         })
 
         const nearestGoal = sortedGoals[0]
-        const progress = (nearestGoal.current_amount / nearestGoal.target_amount) * 100
+        const progress =
+          nearestGoal.target_amount > 0 ? (nearestGoal.current_amount / nearestGoal.target_amount) * 100 : 0
+        const remaining = nearestGoal.target_amount - nearestGoal.current_amount
 
         return `**Recomendação de priorização:**
 
-1. **${nearestGoal.name}** - Está a ${progress.toFixed(0)}%, mais perto de concluir!
+🥇 **Foco principal:** ${nearestGoal.name}
+• Está a ${progress.toFixed(0)}% - mais perto de concluir!
+• Faltam apenas €${remaining.toFixed(2)}
 
-**Estratégia sugerida:**
-• Foca 70% das poupanças na meta mais próxima
-• Distribui 30% pelas outras metas
-• Assim celebras vitórias mais cedo e manténs motivação!`
+**Estratégia recomendada:**
+
+1. **Método Avalanche (racional):**
+   Prioriza metas com maior impacto financeiro
+
+2. **Método Bola de Neve (motivacional):** ⭐
+   Completa as mais próximas primeiro para ganhar momentum
+
+**Sugestão para ti:**
+• Aloca 70% das poupanças para "${nearestGoal.name}"
+• Distribui 30% pelas outras ${goals.length - 1} metas
+• Quando completares uma, celebra e redireciona!
+
+Completar metas mais cedo gera dopamina e mantém-te motivado! 🧠`
       }
 
-      // Investir questions
-      if (q.includes("começar") && q.includes("investir")) {
-        return `**Como começar a investir:**
+      if (matchesAny(q, ["atingir mais rápido", "acelerar metas", "metas mais rápido", "como poupar mais"])) {
+        const potentialSavings = monthlyExpenses * 0.15
 
-1. **Fundo de emergência primeiro**
-   Garante 3-6 meses de despesas em poupança (€${(monthlyExpenses * 3).toFixed(2)} - €${(monthlyExpenses * 6).toFixed(2)})
+        return `**Como atingir metas mais rápido:**
 
-2. **Define quanto investir**
-   Idealmente 10-20% do rendimento (€${(monthlyIncome * 0.1).toFixed(2)} - €${(monthlyIncome * 0.2).toFixed(2)}/mês)
+**1. Cortar despesas (impacto imediato)**
+• Revê subscrições não utilizadas
+• Reduz 15% em ${sortedCategories[0]?.[0] || "categorias principais"} = €${potentialSavings.toFixed(2)}/mês
+• "Dia sem gastos" semanal
 
-3. **Começa com ETFs globais**
-   Diversificação automática e baixas comissões
+**2. Aumentar rendimento**
+• Freelancing ou trabalho extra
+• Vender itens não utilizados
+• Pedir aumento (se aplicável)
 
-4. **Investe regularmente**
-   Mesmo valor todo mês (DCA - Dollar Cost Average)
+**3. Automatizar**
+• Transferência automática no dia do salário
+• "Paga-te a ti primeiro" - 20% direto para metas
 
-5. **Pensa a longo prazo**
-   Mínimo 5-10 anos para reduzir risco
+**4. Desafios de poupança**
+• Desafio das 52 semanas
+• Arredondar compras para cima
+• Igualar gastos supérfluos com poupança
 
-${totalSavings >= monthlyExpenses * 3 ? "✅ Já tens fundo de emergência! Podes começar a investir." : `⚠️ Primeiro, aumenta a poupança para €${(monthlyExpenses * 3).toFixed(2)} (3 meses de despesas).`}`
+**Impacto de poupar +€100/mês:**
+${goals
+  .slice(0, 2)
+  .map((g) => {
+    const remaining = g.target_amount - g.current_amount
+    const currentMonths = monthlyBalance > 0 ? Math.ceil(remaining / monthlyBalance) : 999
+    const newMonths = monthlyBalance + 100 > 0 ? Math.ceil(remaining / (monthlyBalance + 100)) : 999
+    return `• ${g.name}: ${currentMonths} → ${newMonths} meses (${currentMonths - newMonths} meses mais cedo!)`
+  })
+  .join("\n")}`
       }
 
-      if (q.includes("etf")) {
-        return `**O que são ETFs:**
+      // ====== INVESTIR ======
+      if (
+        matchesAny(q, [
+          "começar a investir",
+          "como investir",
+          "quero investir",
+          "iniciar investimento",
+          "primeiro investimento",
+        ])
+      ) {
+        const emergencyFund = monthlyExpenses * 6
+        const hasEmergencyFund = totalSavings >= monthlyExpenses * 3
 
-ETF = Exchange Traded Fund (Fundo Negociado em Bolsa)
+        return `**Guia para começar a investir:**
+
+**Passo 1: Verificar pré-requisitos**
+${
+  hasEmergencyFund
+    ? "✅ Tens fundo de emergência adequado!"
+    : `⚠️ Primeiro, cria fundo de emergência de €${emergencyFund.toFixed(2)} (6 meses)`
+}
+${
+  monthlyBalance > 0
+    ? `✅ Tens capacidade de poupança (€${monthlyBalance.toFixed(2)}/mês)`
+    : "⚠️ Equilibra primeiro receitas e despesas"
+}
+
+**Passo 2: Definir montante**
+• Recomendado: 10-20% do rendimento
+• Para ti: €${(monthlyIncome * 0.1).toFixed(2)} - €${(monthlyIncome * 0.2).toFixed(2)}/mês
+• Começa pequeno e aumenta gradualmente
+
+**Passo 3: Escolher onde investir**
+• **ETFs globais** (VWCE, IWDA) - Diversificação automática
+• **PPR** - Benefícios fiscais em Portugal
+• **Certificados de Aforro** - Sem risco, baixo retorno
+
+**Passo 4: Escolher corretora**
+• Degiro, XTB, Trading 212 (baixas comissões)
+• Banco tradicional (mais caro mas conveniente)
+
+**Passo 5: Investir regularmente**
+• Mesmo valor todo mês (DCA)
+• Ignora volatilidade de curto prazo
+• Horizonte mínimo: 5-10 anos
+
+${
+  hasEmergencyFund && monthlyBalance > 100
+    ? "\n🚀 Estás pronto para começar a investir!"
+    : "\n📌 Foca primeiro nos pré-requisitos antes de investir."
+}`
+      }
+
+      if (matchesAny(q, ["etf", "o que são etfs", "etfs funcionam", "exchange traded"])) {
+        return `**ETFs explicados de forma simples:**
+
+**O que é um ETF?**
+Exchange Traded Fund = Cabaz de ações num só produto
+Como comprar um pacote com 500+ empresas de uma vez!
 
 **Vantagens:**
-• Diversificação automática (centenas de empresas num só produto)
-• Custos muito baixos (0.1-0.5% ao ano)
-• Fácil de comprar/vender
-• Ideal para iniciantes
+• 🌍 Diversificação automática
+• 💰 Custos muito baixos (0.1-0.5%/ano)
+• 📈 Acompanha o mercado
+• 🔄 Fácil comprar/vender
 
-**ETFs recomendados para portugueses:**
-• **IWDA** - Mercados desenvolvidos mundiais
-• **VWCE** - Mundo todo (desenvolvidos + emergentes)
-• **SXR8** - S&P 500 (500 maiores empresas EUA)
+**ETFs populares para portugueses:**
 
-**Como funcionam:**
-1. Compras uma "fatia" do ETF
-2. O ETF compra ações das empresas por ti
-3. O teu dinheiro cresce com o mercado
+| ETF | O que inclui | Custo/ano |
+|-----|-------------|-----------|
+| VWCE | 3000+ empresas globais | 0.22% |
+| IWDA | Países desenvolvidos | 0.20% |
+| SXR8 | S&P 500 (EUA) | 0.07% |
 
-**Exemplo com €200/mês a 7% durante 20 anos:**
-• Total investido: €48.000
-• Valor final estimado: ~€104.000
-• Ganho: ~€56.000 em juros compostos!`
+**Exemplo prático:**
+Compras 1 unidade de VWCE (~€115):
+→ Tens automaticamente parte da Apple, Microsoft, Nestlé, Toyota, e mais 3000 empresas!
+
+**Simulação: €200/mês durante 20 anos a 7%:**
+• Investido: €48.000
+• Valor final: ~€104.000
+• Ganho: €56.000 em juros compostos!
+
+Os ETFs são a forma mais simples de investir para iniciantes. 👍`
       }
 
-      if (q.includes("simula") || q.includes("juros compostos")) {
+      if (matchesAny(q, ["simula", "simulação", "calcular investimento", "juros compostos", "quanto terei"])) {
         // Parse numbers from question or use defaults
-        const monthlyAmount = 200
-        const years = 20
-        const rate = 0.07
+        let monthlyAmount = 200
+        let years = 20
+        let rate = 7
 
+        // Try to extract numbers from question
+        const numbers = q.match(/\d+/g)
+        if (numbers) {
+          if (numbers[0]) monthlyAmount = Number.parseInt(numbers[0])
+          if (numbers[1]) years = Number.parseInt(numbers[1])
+          if (numbers[2]) rate = Number.parseInt(numbers[2])
+        }
+
+        const annualRate = rate / 100
         const months = years * 12
-        const monthlyRate = rate / 12
+        const monthlyRate = annualRate / 12
         const futureValue = monthlyAmount * ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate)
         const totalInvested = monthlyAmount * months
         const gains = futureValue - totalInvested
 
+        // Different scenarios
+        const conservative = monthlyAmount * ((Math.pow(1 + 0.05 / 12, months) - 1) / (0.05 / 12))
+        const aggressive = monthlyAmount * ((Math.pow(1 + 0.1 / 12, months) - 1) / (0.1 / 12))
+
         return `**Simulação de Investimento:**
 
-• **Investimento mensal:** €${monthlyAmount}
-• **Período:** ${years} anos
-• **Retorno anual estimado:** ${rate * 100}%
+📊 **Parâmetros:**
+• Investimento mensal: €${monthlyAmount}
+• Período: ${years} anos
+• Retorno anual: ${rate}%
 
-**Resultado:**
-• Total investido: €${totalInvested.toFixed(2)}
-• Valor final: €${futureValue.toFixed(2)}
-• **Ganho com juros compostos:** €${gains.toFixed(2)}
+💰 **Resultado:**
+• Total investido: €${totalInvested.toLocaleString("pt-PT")}
+• Valor final: **€${Math.round(futureValue).toLocaleString("pt-PT")}**
+• Ganho com juros: €${Math.round(gains).toLocaleString("pt-PT")}
+• Multiplicador: ${(futureValue / totalInvested).toFixed(1)}x
 
-O teu dinheiro mais que duplicou graças aos juros compostos!
+📈 **Cenários alternativos:**
+• Conservador (5%): €${Math.round(conservative).toLocaleString("pt-PT")}
+• Agressivo (10%): €${Math.round(aggressive).toLocaleString("pt-PT")}
 
-**Como funcionam juros compostos:**
-Os ganhos de cada ano geram mais ganhos no ano seguinte. É como uma bola de neve que cresce exponencialmente.`
+**O poder dos juros compostos:**
+Os teus €${totalInvested.toLocaleString("pt-PT")} transformam-se em €${Math.round(futureValue).toLocaleString("pt-PT")}!
+O dinheiro gera mais dinheiro automaticamente.
+
+⏰ **Quanto mais cedo começares, melhor!**
+Cada ano de atraso custa milhares de euros em ganhos perdidos.`
       }
 
-      // Poupar questions
-      if (q.includes("cortar") || q.includes("eliminar") || q.includes("despesas")) {
+      if (matchesAny(q, ["quanto investir", "percentagem investir", "parte do salário", "quanto devo investir"])) {
+        const conservative = monthlyIncome * 0.1
+        const moderate = monthlyIncome * 0.15
+        const aggressive = monthlyIncome * 0.2
+
+        return `**Quanto deves investir do salário:**
+
+📊 **Recomendações gerais:**
+• Mínimo: 10% = €${conservative.toFixed(2)}/mês
+• Ideal: 15% = €${moderate.toFixed(2)}/mês  
+• Agressivo: 20% = €${aggressive.toFixed(2)}/mês
+
+**A tua situação atual:**
+• Rendimento: €${monthlyIncome.toFixed(2)}/mês
+• Poupança atual: €${monthlyBalance.toFixed(2)} (${savingsRate.toFixed(0)}%)
+• ${savingsRate >= 20 ? "✅ Já poupas 20%+! Excelente!" : savingsRate >= 10 ? "👍 Bom começo, tenta aumentar gradualmente" : "⚠️ Tenta aumentar a taxa de poupança"}
+
+**Prioridade de alocação:**
+1. Fundo emergência: €${(monthlyExpenses * 6).toFixed(2)} (6 meses)
+2. Dívidas de juros altos: Pagar primeiro!
+3. Investimentos: O que sobrar
+
+**Estratégia recomendada:**
+${
+  totalSavings < monthlyExpenses * 3
+    ? `Foca primeiro em construir €${(monthlyExpenses * 3).toFixed(2)} de emergência, depois investe.`
+    : `Com fundo de emergência adequado, podes investir €${moderate.toFixed(2)}/mês em ETFs.`
+}
+
+💡 **Dica:** Automatiza a transferência no dia do salário!`
+      }
+
+      // ====== POUPAR ======
+      if (matchesAny(q, ["cortar despesas", "reduzir gastos", "onde poupar", "economizar", "gastar menos"])) {
         if (sortedCategories.length === 0) {
-          return "Não encontrei despesas este mês para analisar. Adiciona algumas transações primeiro!"
+          return "Não encontrei despesas este mês para analisar. Adiciona transações primeiro!"
         }
 
-        const topCategory = sortedCategories[0]
+        const potentialSavings10 = monthlyExpenses * 0.1
+        const potentialSavings20 = monthlyExpenses * 0.2
 
-        return `**Análise de despesas para cortar:**
+        return `**Análise para cortar despesas:**
 
-**Maiores categorias de gastos:**
+📊 **As tuas maiores categorias:**
 ${sortedCategories
   .slice(0, 5)
-  .map(([cat, val], i) => `${i + 1}. ${cat}: €${val.toFixed(2)} (${((val / monthlyExpenses) * 100).toFixed(1)}%)`)
+  .map(([cat, val], i) => {
+    const percent = ((val / monthlyExpenses) * 100).toFixed(0)
+    const potentialCut = val * 0.2
+    return `${i + 1}. **${cat}**: €${val.toFixed(2)} (${percent}%)
+   💡 Cortar 20% = poupar €${potentialCut.toFixed(2)}/mês`
+  })
   .join("\n")}
 
-**Sugestões:**
-${topCategory[1] > monthlyExpenses * 0.3 ? `• **${topCategory[0]}** representa ${((topCategory[1] / monthlyExpenses) * 100).toFixed(0)}% das despesas. Tenta reduzir 10-20%.` : ""}
-• Revê subscrições e serviços não utilizados
-• Compara preços antes de compras grandes
-• Define um "dia sem gastos" por semana
+**Estratégias de corte:**
+${
+  sortedCategories[0] && sortedCategories[0][1] > monthlyExpenses * 0.25
+    ? `• ⚠️ "${sortedCategories[0][0]}" representa ${((sortedCategories[0][1] / monthlyExpenses) * 100).toFixed(0)}% dos gastos. Foco aqui!`
+    : ""
+}
+• Revê todas as subscrições (Netflix, Spotify, ginásio...)
+• Compara preços antes de compras >€50
+• Leva almoço de casa 2-3x por semana
+• Usa transportes públicos quando possível
+• Desafio "sem gastos" 1 dia por semana
 
-**Potencial de poupança:**
-Se reduzires 10% em cada categoria, poupas €${(monthlyExpenses * 0.1).toFixed(2)}/mês ou €${(monthlyExpenses * 0.1 * 12).toFixed(2)}/ano!`
+**Impacto potencial:**
+• Cortar 10%: +€${potentialSavings10.toFixed(2)}/mês = €${(potentialSavings10 * 12).toFixed(2)}/ano
+• Cortar 20%: +€${potentialSavings20.toFixed(2)}/mês = €${(potentialSavings20 * 12).toFixed(2)}/ano
+
+🎯 Começa por identificar 3 gastos não essenciais para eliminar esta semana!`
       }
 
-      if (q.includes("50/30/20") || q.includes("regra")) {
-        const needs = monthlyIncome * 0.5
-        const wants = monthlyIncome * 0.3
-        const savings = monthlyIncome * 0.2
+      if (matchesAny(q, ["50/30/20", "regra 50", "cinquenta trinta", "orçamento regra"])) {
+        const needs50 = monthlyIncome * 0.5
+        const wants30 = monthlyIncome * 0.3
+        const savings20 = monthlyIncome * 0.2
 
-        return `**Regra 50/30/20 para ti:**
+        const actualSavings = monthlyIncome - monthlyExpenses
+        const actualSavingsPercent = savingsRate
 
-Com rendimento de €${monthlyIncome.toFixed(2)}/mês:
+        return `**Regra 50/30/20 aplicada às tuas finanças:**
 
-• **50% Necessidades:** €${needs.toFixed(2)}
-  (renda, contas, alimentação essencial, transportes)
+📊 **Com rendimento de €${monthlyIncome.toFixed(2)}:**
 
-• **30% Desejos:** €${wants.toFixed(2)}
-  (restaurantes, entretenimento, compras não essenciais)
+| Categoria | % | Valor | Descrição |
+|-----------|---|-------|-----------|
+| Necessidades | 50% | €${needs50.toFixed(2)} | Renda, contas, comida, transporte |
+| Desejos | 30% | €${wants30.toFixed(2)} | Restaurantes, lazer, compras |
+| Poupança | 20% | €${savings20.toFixed(2)} | Emergência, metas, investir |
 
-• **20% Poupança/Investimento:** €${savings.toFixed(2)}
-  (fundo emergência, metas, investimentos)
+**A tua realidade atual:**
+• Gastas: €${monthlyExpenses.toFixed(2)} (${(100 - savingsRate).toFixed(0)}%)
+• Poupas: €${actualSavings.toFixed(2)} (${actualSavingsPercent.toFixed(0)}%)
 
-**Comparação com a realidade:**
-• Gastas: €${monthlyExpenses.toFixed(2)} (${((monthlyExpenses / monthlyIncome) * 100).toFixed(0)}%)
-• Poupas: €${(monthlyIncome - monthlyExpenses).toFixed(2)} (${(((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100).toFixed(0)}%)
+${
+  actualSavingsPercent >= 20
+    ? `✅ **Parabéns!** Poupas ${actualSavingsPercent.toFixed(0)}%, acima da recomendação!`
+    : actualSavingsPercent >= 10
+      ? `👍 **Bom progresso!** Poupas ${actualSavingsPercent.toFixed(0)}%. Faltam €${(savings20 - actualSavings).toFixed(2)}/mês para os 20%.`
+      : `⚠️ **Atenção!** Poupas apenas ${actualSavingsPercent.toFixed(0)}%. Tenta reduzir despesas em €${(savings20 - actualSavings).toFixed(2)}/mês.`
+}
 
-${(monthlyIncome - monthlyExpenses) >= savings ? "✅ Estás a cumprir a regra!" : `⚠️ Devias poupar mais €${(savings - (monthlyIncome - monthlyExpenses)).toFixed(2)}/mês para atingir os 20%.`}`
+**Como ajustar:**
+${
+  monthlyExpenses > needs50 + wants30
+    ? `• Reduz despesas em €${(monthlyExpenses - needs50 - wants30).toFixed(2)} para cumprir a regra`
+    : "• Estás dentro do orçamento recomendado!"
+}
+
+💡 Esta regra é um guia, não uma lei. Adapta às tuas circunstâncias!`
       }
 
-      if (q.includes("fundo de emergência") || q.includes("emergência")) {
+      if (
+        matchesAny(q, [
+          "fundo de emergência",
+          "emergência",
+          "reserva financeira",
+          "dinheiro emergência",
+          "quanto reserva",
+        ])
+      ) {
+        const minimum = monthlyExpenses * 3
         const recommended = monthlyExpenses * 6
+        const coverage = monthlyExpenses > 0 ? totalSavings / monthlyExpenses : 0
 
-        return `**Fundo de Emergência:**
+        return `**Fundo de Emergência explicado:**
 
-**O que é:**
-Reserva financeira para imprevistos (perda de emprego, doença, reparações urgentes).
+**O que é?**
+Reserva para imprevistos: perda de emprego, doença, reparações urgentes, etc.
 
-**Quanto ter:**
-• Mínimo: 3 meses de despesas = €${(monthlyExpenses * 3).toFixed(2)}
-• Ideal: 6 meses de despesas = €${(monthlyExpenses * 6).toFixed(2)}
+📊 **Quanto ter:**
+• Mínimo: 3 meses = €${minimum.toFixed(2)}
+• Recomendado: 6 meses = €${recommended.toFixed(2)}
+• Conservador: 12 meses = €${(monthlyExpenses * 12).toFixed(2)}
 
-**O teu estado:**
-• Poupanças atuais: €${totalSavings.toFixed(2)}
-• ${totalSavings >= recommended ? `✅ Tens ${(totalSavings / monthlyExpenses).toFixed(1)} meses de reserva. Excelente!` : `⚠️ Faltam €${(recommended - totalSavings).toFixed(2)} para 6 meses de reserva.`}
+**O teu estado atual:**
+• Poupanças: €${totalSavings.toFixed(2)}
+• Cobertura: ${coverage.toFixed(1)} meses de despesas
+${
+  coverage >= 6
+    ? `\n✅ **Excelente!** Tens ${coverage.toFixed(1)} meses de reserva. Podes começar a investir o excedente!`
+    : coverage >= 3
+      ? `\n👍 **Bom!** Tens o mínimo. Tenta aumentar para €${recommended.toFixed(2)} (6 meses).`
+      : `\n⚠️ **Atenção!** Faltam €${(minimum - totalSavings).toFixed(2)} para o mínimo de 3 meses.`
+}
 
 **Onde guardar:**
-• Conta poupança com acesso imediato
-• Nunca investir o fundo de emergência
-• Separado das outras poupanças`
+• Conta poupança separada (nunca mexer!)
+• Acesso fácil mas não imediato
+• Nunca investir em ativos voláteis
+
+**Plano para construir:**
+${
+  totalSavings < minimum
+    ? `• Precisas poupar €${(minimum - totalSavings).toFixed(2)}
+• Ao ritmo atual: ~${monthlyBalance > 0 ? Math.ceil((minimum - totalSavings) / monthlyBalance) : "∞"} meses`
+    : "• Já tens fundo adequado! Mantém e investe o resto."
+}`
       }
 
-      // Aprender questions
-      if (q.includes("diversificação")) {
+      if (matchesAny(q, ["despesas por categoria", "análise categorias", "onde gasto mais", "categorias de gastos"])) {
+        if (sortedCategories.length === 0) {
+          return "Sem despesas registadas este mês para analisar por categoria."
+        }
+
+        const total = monthlyExpenses
+
+        return `**Análise de despesas por categoria:**
+
+📊 **${now.toLocaleString("pt-PT", { month: "long", year: "numeric" })}**
+Total: €${total.toFixed(2)}
+
+${sortedCategories
+  .map(([cat, val], i) => {
+    const percent = ((val / total) * 100).toFixed(1)
+    const bar = "█".repeat(Math.round(Number(percent) / 5)) + "░".repeat(20 - Math.round(Number(percent) / 5))
+    return `**${i + 1}. ${cat}**
+${bar} ${percent}%
+€${val.toFixed(2)}`
+  })
+  .join("\n\n")}
+
+**Insights:**
+${
+  sortedCategories[0] && Number((sortedCategories[0][1] / total) * 100) > 30
+    ? `• ⚠️ "${sortedCategories[0][0]}" ocupa ${((sortedCategories[0][1] / total) * 100).toFixed(0)}% do orçamento`
+    : "• ✅ Distribuição equilibrada entre categorias"
+}
+${sortedCategories.length > 5 ? `• Tens gastos em ${sortedCategories.length} categorias diferentes` : ""}`
+      }
+
+      // ====== APRENDER ======
+      if (matchesAny(q, ["juros compostos", "compound interest", "juro composto"])) {
+        const example10Years = 200 * ((Math.pow(1 + 0.07 / 12, 120) - 1) / (0.07 / 12))
+        const example20Years = 200 * ((Math.pow(1 + 0.07 / 12, 240) - 1) / (0.07 / 12))
+        const example30Years = 200 * ((Math.pow(1 + 0.07 / 12, 360) - 1) / (0.07 / 12))
+
+        return `**Juros Compostos - A 8ª maravilha do mundo:**
+
+**O que são?**
+Ganhas juros não só sobre o dinheiro investido, mas também sobre os juros anteriores. O dinheiro cresce exponencialmente!
+
+**Fórmula simplificada:**
+Valor Final = Contribuição × ((1 + taxa)^tempo - 1) / taxa
+
+**Exemplo prático (€200/mês a 7%):**
+
+| Anos | Investido | Valor Final | Ganho |
+|------|-----------|-------------|-------|
+| 10 | €24.000 | €${Math.round(example10Years).toLocaleString("pt-PT")} | €${Math.round(example10Years - 24000).toLocaleString("pt-PT")} |
+| 20 | €48.000 | €${Math.round(example20Years).toLocaleString("pt-PT")} | €${Math.round(example20Years - 48000).toLocaleString("pt-PT")} |
+| 30 | €72.000 | €${Math.round(example30Years).toLocaleString("pt-PT")} | €${Math.round(example30Years - 72000).toLocaleString("pt-PT")} |
+
+📈 **O segredo:** TEMPO
+• 10 anos: multiplicas por ${(example10Years / 24000).toFixed(1)}x
+• 30 anos: multiplicas por ${(example30Years / 72000).toFixed(1)}x
+
+**A regra dos 72:**
+Divide 72 pela taxa de retorno = anos para duplicar
+Ex: 72 ÷ 7% = ~10 anos para duplicar
+
+⏰ Cada ano que adias custa milhares de euros!`
+      }
+
+      if (matchesAny(q, ["diversificação", "diversificar", "não pôr ovos", "distribuir investimentos"])) {
         return `**Diversificação explicada:**
 
-**O que é:**
-Não pôr todos os ovos no mesmo cesto. Distribuir investimentos por diferentes ativos para reduzir risco.
+**O que é?**
+"Não pôr todos os ovos no mesmo cesto"
+Distribuir investimentos para reduzir risco.
 
 **Tipos de diversificação:**
-1. **Por classe de ativos**
-   Ações, obrigações, imobiliário, ouro
 
-2. **Por geografia**
-   Europa, EUA, Ásia, mercados emergentes
+1. **Por classe de ativos:**
+• Ações (crescimento)
+• Obrigações (estabilidade)
+• Imobiliário (rendimento)
+• Ouro (proteção)
 
-3. **Por setor**
-   Tecnologia, saúde, energia, consumo
+2. **Por geografia:**
+• Europa, EUA, Ásia
+• Mercados emergentes
 
-**Exemplo prático:**
-Em vez de comprar só ações da Apple:
-• 60% ETF global (VWCE)
-• 20% Obrigações (segurança)
-• 20% Imobiliário/Ouro (proteção inflação)
+3. **Por setor:**
+• Tecnologia, Saúde, Energia
+• Consumo, Financeiro
 
-**Benefício:**
-Se um setor cai, outros compensam. Reduces volatilidade sem sacrificar muito retorno.`
+**Exemplo de carteira diversificada:**
+• 60% ETF Global (VWCE)
+• 20% Obrigações
+• 10% Imobiliário
+• 10% Ouro
+
+**Porque funciona:**
+Se tecnologia cai 30%, mas só tens 20% em tech → perdes 6%
+Se tivesses tudo em tech → perdes 30%
+
+**Regra de ouro:**
+Com ETFs globais já tens diversificação automática em 3000+ empresas!
+
+${totalInvestments > 0 ? `\n💡 Os teus €${totalInvestments.toFixed(2)} em investimentos estão diversificados?` : ""}`
       }
 
-      if (q.includes("inflação")) {
+      if (matchesAny(q, ["inflação", "inflation", "perda de valor", "preços sobem"])) {
+        const value10Years = 1000 / Math.pow(1.03, 10)
+        const value20Years = 1000 / Math.pow(1.03, 20)
+
         return `**Inflação explicada:**
 
-**O que é:**
-Aumento geral dos preços ao longo do tempo. O teu dinheiro perde poder de compra.
+**O que é?**
+Aumento geral dos preços ao longo do tempo.
+O teu dinheiro perde poder de compra!
 
-**Exemplo:**
-€100 hoje com inflação de 3%/ano:
-• Daqui a 10 anos = poder de compra de €74
-• Daqui a 20 anos = poder de compra de €55
+**Exemplo real:**
+€1000 hoje com inflação de 3%/ano:
+• Daqui a 10 anos: poder de compra de €${value10Years.toFixed(0)}
+• Daqui a 20 anos: poder de compra de €${value20Years.toFixed(0)}
+
+**Impacto nos teus €${totalBalance.toFixed(2)}:**
+• Sem investir, daqui a 10 anos valem ~€${(totalBalance * 0.74).toFixed(2)} em poder de compra
+• É como perder €${(totalBalance * 0.26).toFixed(2)}!
 
 **Como te proteger:**
-1. **Investir** - Retornos acima da inflação
-2. **Evitar cash parado** - Dinheiro em conta perde valor
-3. **Imobiliário** - Rendas sobem com inflação
-4. **Ações** - Empresas aumentam preços
-5. **ETFs de inflação** - Obrigações indexadas
 
-**Taxas importantes:**
-• Inflação Portugal ~3%/ano
-• Conta poupança ~1%/ano = perdes 2%/ano
-• ETF global ~7%/ano = ganhas 4%/ano real`
+| Estratégia | Retorno típico | vs Inflação |
+|------------|---------------|-------------|
+| Conta poupança | 1-2% | Perdes 1-2%/ano |
+| Certificados | 2-3% | Empatas |
+| ETFs | 7%+ | Ganhas 4%+/ano |
+| Imobiliário | 5-8% | Ganhas 2-5%/ano |
+
+**A solução:**
+Investir em ativos que crescem acima da inflação!
+ETFs globais historicamente rendem 7-10%/ano.
+
+⚠️ Dinheiro parado em conta é garantia de perder valor!`
       }
 
-      if (q.includes("poupar") && q.includes("investir") && q.includes("diferença")) {
+      if (
+        matchesAny(q, [
+          "diferença poupar investir",
+          "poupar vs investir",
+          "poupar ou investir",
+          "poupança vs investimento",
+        ])
+      ) {
         return `**Poupar vs Investir:**
 
-**Poupar:**
-• Guardar dinheiro em local seguro
-• Retorno baixo (0-2%/ano)
-• Sem risco de perda
-• Acesso imediato
-• Ideal para: emergências, curto prazo
+| Aspeto | Poupar | Investir |
+|--------|--------|----------|
+| Retorno | 0-2%/ano | 5-10%/ano |
+| Risco | Zero | Médio-Alto |
+| Liquidez | Imediata | Variável |
+| Ideal para | Curto prazo | Longo prazo |
+| Proteção inflação | ❌ Não | ✅ Sim |
 
-**Investir:**
-• Aplicar dinheiro em ativos
-• Retorno potencial alto (5-10%/ano)
-• Risco de perdas temporárias
-• Menos liquidez
-• Ideal para: longo prazo (5+ anos)
+**Quando poupar:**
+• Fundo de emergência
+• Objetivos < 2 anos (férias, carro)
+• Dinheiro que podes precisar rapidamente
 
-**Quando cada um:**
-| Objetivo | Prazo | Escolha |
-|----------|-------|---------|
-| Emergência | - | Poupar |
-| Férias | <1 ano | Poupar |
-| Carro | 2-3 anos | 50/50 |
-| Casa | 5+ anos | Investir |
-| Reforma | 20+ anos | Investir |
+**Quando investir:**
+• Reforma (20+ anos)
+• Comprar casa (5+ anos)
+• Objetivos a longo prazo
+• Dinheiro que não precisas tocar
 
-**Regra geral:**
-Primeiro poupa (fundo emergência), depois investe (resto).`
+**Ordem recomendada:**
+1. 🆘 Fundo emergência (3-6 meses) → POUPAR
+2. 💰 Sobra mensal → INVESTIR
+3. 🎯 Metas curto prazo → POUPAR
+4. 📈 Metas longo prazo → INVESTIR
+
+**A tua situação:**
+• Poupanças: €${totalSavings.toFixed(2)}
+• Investimentos: €${totalInvestments.toFixed(2)}
+${
+  totalSavings < monthlyExpenses * 3
+    ? "\n💡 Foca primeiro em poupar para emergência!"
+    : totalInvestments === 0
+      ? "\n💡 Tens poupança adequada! Considera começar a investir."
+      : "\n✅ Boa combinação de poupança e investimento!"
+}`
       }
 
-      // Ajuda questions
-      if (q.includes("o que podes fazer") || q.includes("ajudar")) {
-        return `**O que posso fazer por ti:**
+      // ====== AJUDA ======
+      if (matchesAny(q, ["o que podes fazer", "ajudar", "capacidades", "funcionalidades", "como funciona"])) {
+        return `**O que o CashBot pode fazer por ti:**
 
-**Análise Financeira:**
-• Ver saldos e património total
-• Analisar despesas por categoria
-• Comparar receitas vs despesas
-• Identificar padrões de gastos
+🔍 **Análise Financeira:**
+• "Qual é o meu saldo total?"
+• "Quanto gastei este mês?"
+• "Onde gasto mais dinheiro?"
+• "Estou a poupar o suficiente?"
 
-**Planeamento:**
-• Criar planos de poupança
-• Sugerir cortes de despesas
-• Calcular tempos para metas
-• Aplicar regra 50/30/20
+🎯 **Planeamento de Metas:**
+• "Como estão as minhas metas?"
+• "Qual meta devo priorizar?"
+• "Como atingir metas mais rápido?"
 
-**Educação:**
-• Explicar juros compostos
-• Ensinar sobre ETFs e investimentos
-• Conceitos como diversificação e inflação
+📈 **Investimentos:**
+• "Como começar a investir?"
+• "O que são ETFs?"
+• "Simula investir X€ durante Y anos"
 
-**Simulações:**
-• Calcular investimentos futuros
-• Projetar crescimento de poupanças
+💡 **Educação Financeira:**
+• "O que são juros compostos?"
+• "Como funciona a diversificação?"
+• "Regra 50/30/20"
 
-Pergunta-me o que quiseres sobre finanças!`
+🛠️ **Ajuda com a App:**
+• "Como adiciono uma transação?"
+• "Como funcionam as automações?"
+
+Pergunta-me o que quiseres! Tenho acesso aos teus dados financeiros para dar respostas personalizadas.`
       }
 
-      if (q.includes("transação") || q.includes("adiciono")) {
+      if (matchesAny(q, ["adicionar transação", "nova transação", "registar gasto", "adiciono despesa"])) {
         return `**Como adicionar uma transação:**
 
-1. Clica no botão **"+ Nova Transação"** na barra lateral
+1. Clica em **"+ Nova Transação"** na barra lateral esquerda
+
 2. Preenche os campos:
-   • Tipo (Receita/Despesa/Transferência)
-   • Valor
-   • Descrição
-   • Categoria
-   • Conta
-   • Data
+   • **Tipo:** Receita, Despesa ou Transferência
+   • **Valor:** Montante da transação
+   • **Descrição:** O que foi (ex: "Almoço restaurante")
+   • **Categoria:** Alimentação, Transporte, etc.
+   • **Conta:** De onde sai/entra o dinheiro
+   • **Data:** Quando aconteceu
+
 3. Clica em **"Guardar"**
 
-**Dica:** Podes também configurar transações recorrentes em "Recorrentes" para salário, rendas, etc.`
+💡 **Dicas:**
+• Usa descrições claras para encontrar depois
+• Categoriza sempre para análises melhores
+• Para gastos recorrentes, usa a secção "Recorrentes"
+
+📱 Adiciona transações logo após gastares para não esqueceres!`
       }
 
-      if (q.includes("automação") || q.includes("automações")) {
+      if (matchesAny(q, ["automação", "automações", "automatizar", "automático"])) {
         return `**Como funcionam as automações:**
 
-As automações executam ações automaticamente quando certas condições são cumpridas.
+As automações executam ações automaticamente baseadas em condições.
 
-**Exemplos:**
-• Transferir 10% do salário para poupança
-• Alertar quando gastos excedem orçamento
+**Exemplos úteis:**
+• Transferir 20% do salário para poupança
+• Alertar quando gastos > €500/mês em categoria
 • Contribuir para metas automaticamente
 
 **Como criar:**
 1. Vai a **"Automações"** no menu
 2. Clica em **"+ Nova Automação"**
-3. Define o trigger (quando executar)
-4. Define a ação (o que fazer)
-5. Ativa a automação
+3. Define:
+   • **Trigger:** Quando executar (ex: receber salário)
+   • **Ação:** O que fazer (ex: transferir €200)
+   • **Frequência:** Diário, semanal, mensal
+4. Ativa a automação
 
-É uma forma excelente de poupar sem pensar!`
+**Automações recomendadas:**
+• "Paga-te a ti primeiro" - 20% do salário para poupança
+• Contribuição automática para metas
+• Alerta de gastos excessivos
+
+💡 Automatizar é a melhor forma de poupar sem esforço!`
       }
 
-      if (q.includes("metas") && q.includes("funcionam")) {
+      if (matchesAny(q, ["metas funcionam", "criar meta", "como usar metas", "sistema de metas"])) {
         return `**Como funcionam as metas:**
 
-1. **Criar uma meta** na secção "Metas"
-   • Nome (ex: "Férias", "Carro novo")
-   • Valor objetivo
+**Criar uma meta:**
+1. Vai a **"Metas"** no menu lateral
+2. Clica em **"+ Nova Meta"**
+3. Define:
+   • Nome (ex: "Férias Tailândia")
+   • Valor objetivo (ex: €2.000)
    • Data limite (opcional)
+   • Imagem/ícone (motivação!)
 
-2. **Adicionar dinheiro**
-   • Transferir de uma conta para a meta
-   • Usar automações para contribuições automáticas
+**Adicionar dinheiro:**
+• Transferir de uma conta para a meta
+• Configurar contribuição automática
+• O saldo da meta é separado das contas
 
-3. **Acompanhar progresso**
-   • Barra de progresso visual
-   • Estimativa de conclusão
-   • Histórico de contribuições
+**Acompanhar:**
+• Barra de progresso visual
+• Estimativa de conclusão
+• Histórico de contribuições
 
-**Dica:** Metas com imagens e nomes concretos motivam mais!`
+💡 **Dicas de sucesso:**
+• Nomes específicos motivam mais ("Férias Bali" vs "Viagem")
+• Metas menores primeiro = vitórias rápidas
+• Automatiza contribuições para não falhar
+
+**As tuas metas atuais:**
+${
+  goals.length > 0
+    ? goals.map((g) => `• ${g.name}: ${((g.current_amount / g.target_amount) * 100).toFixed(0)}%`).join("\n")
+    : "Ainda não tens metas. Cria uma para começar!"
+}`
       }
 
-      // Default response
-      return `Obrigado pela tua pergunta! 
+      if (matchesAny(q, ["exportar", "download dados", "excel", "backup"])) {
+        return `**Como exportar os teus dados:**
 
-Posso ajudar-te com:
-• **Análise financeira** - Saldo, despesas, receitas
-• **Metas** - Progresso e estratégias
-• **Investimentos** - ETFs, juros compostos
-• **Poupança** - Onde cortar, regra 50/30/20
-• **Educação** - Conceitos financeiros
+1. Vai a **Definições** (ícone engrenagem)
+2. Secção **"Exportar Dados"**
+3. Escolhe formato:
+   • **CSV** - Para Excel/Google Sheets
+   • **PDF** - Relatório formatado
+   • **JSON** - Backup completo
 
-Tenta ser mais específico na tua pergunta, por exemplo:
+**O que podes exportar:**
+• Todas as transações
+• Resumo por categoria
+• Histórico de metas
+• Relatórios mensais
+
+💡 Exporta regularmente para teres backup dos teus dados!`
+      }
+
+      // ====== CONVERSATIONAL / DEFAULT ======
+      if (matchesAny(q, ["olá", "oi", "bom dia", "boa tarde", "boa noite", "hey", "hello"])) {
+        return `Olá! 👋 
+
+Sou o **CashBot**, o teu assistente financeiro pessoal.
+
+**Resumo rápido das tuas finanças:**
+• Saldo total: €${totalBalance.toFixed(2)}
+• Este mês: ${monthlyBalance >= 0 ? `+€${monthlyBalance.toFixed(2)}` : `-€${Math.abs(monthlyBalance).toFixed(2)}`}
+• Metas ativas: ${goals.length}
+
+Como posso ajudar-te hoje?`
+      }
+
+      if (matchesAny(q, ["obrigado", "obrigada", "thanks", "valeu", "agradeço"])) {
+        return `De nada! 😊
+
+Estou sempre aqui para ajudar com as tuas finanças.
+
+Algumas coisas que podes perguntar:
+• "Análise das minhas despesas"
+• "Simula investir €100/mês"
+• "Como atingir metas mais rápido"
+
+Boa sorte com as tuas finanças! 💪`
+      }
+
+      // Default fallback with suggestions
+      return `Obrigado pela pergunta! Deixa-me ajudar-te melhor.
+
+**Posso responder sobre:**
+• 💰 **Saldo e contas** - "Quanto tenho?", "Minhas contas"
+• 📊 **Despesas** - "Quanto gastei?", "Análise por categoria"
+• 🎯 **Metas** - "Como estão as metas?", "Priorizar qual?"
+• 📈 **Investir** - "Como começar?", "O que são ETFs?"
+• 💡 **Poupar** - "Onde cortar?", "Regra 50/30/20"
+• 📚 **Aprender** - "Juros compostos", "Diversificação"
+
+**Tenta perguntar algo como:**
 • "Qual é o meu saldo total?"
 • "Onde posso cortar despesas?"
-• "O que são ETFs?"`
+• "Simula investir 200€/mês durante 20 anos"
+
+Ou escolhe um tema nos botões acima! 👆`
     },
-    [accounts, transactions, goals, monthlyExpenses, monthlyIncome],
+    [accounts, transactions, goals],
   )
 
   const sendMessage = useCallback(
@@ -657,7 +1165,6 @@ Tenta ser mais específico na tua pergunta, por exemplo:
       setInput("")
       setIsLoading(true)
 
-      // Generate response locally based on user's data
       setTimeout(
         () => {
           const response = generateResponse(text)
@@ -669,8 +1176,8 @@ Tenta ser mais específico na tua pergunta, por exemplo:
           setMessages((prev) => [...prev, assistantMessage])
           setIsLoading(false)
         },
-        500 + Math.random() * 500,
-      ) // Small delay for natural feel
+        400 + Math.random() * 400,
+      )
     },
     [isLoading, generateResponse],
   )
@@ -691,40 +1198,107 @@ Tenta ser mais específico na tua pergunta, por exemplo:
 
   const renderFormattedText = (text: string) => {
     if (!text) return null
-    return text.split("\n").map((line, i) => {
+
+    const lines = text.split("\n")
+    const elements: React.ReactNode[] = []
+    let i = 0
+
+    while (i < lines.length) {
+      const line = lines[i]
+
+      // Handle tables
+      if (line.includes("|") && line.trim().startsWith("|")) {
+        const tableLines: string[] = []
+        while (i < lines.length && lines[i].includes("|")) {
+          tableLines.push(lines[i])
+          i++
+        }
+
+        if (tableLines.length >= 2) {
+          const headerCells = tableLines[0].split("|").filter((c) => c.trim())
+          const bodyRows = tableLines.slice(2).map((row) => row.split("|").filter((c) => c.trim()))
+
+          elements.push(
+            <div key={`table-${i}`} className="overflow-x-auto my-2">
+              <table className="text-xs w-full">
+                <thead>
+                  <tr className="border-b">
+                    {headerCells.map((cell, j) => (
+                      <th key={j} className="px-2 py-1 text-left font-semibold">
+                        {cell.trim()}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bodyRows.map((row, j) => (
+                    <tr key={j} className="border-b border-border/50">
+                      {row.map((cell, k) => (
+                        <td key={k} className="px-2 py-1">
+                          {cell.trim()}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>,
+          )
+          continue
+        }
+      }
+
       // Handle bullet points
       if (line.startsWith("• ") || line.startsWith("- ")) {
         const content = line.slice(2)
-        return (
+        elements.push(
           <p key={i} className="mb-1 last:mb-0 pl-2 flex gap-2">
             <span className="text-primary">•</span>
             <span>{content.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}</span>
-          </p>
+          </p>,
         )
       }
       // Handle numbered lists
-      if (/^\d+\.\s/.test(line)) {
-        return (
+      else if (/^\d+\.\s/.test(line)) {
+        elements.push(
           <p key={i} className="mb-1 last:mb-0 pl-2">
             {line.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}
-          </p>
+          </p>,
         )
       }
       // Handle headers
-      if (line.startsWith("**") && line.endsWith("**")) {
-        return (
+      else if (line.startsWith("**") && line.endsWith("**")) {
+        elements.push(
           <p key={i} className="font-semibold mb-2 mt-3 first:mt-0">
             {line.replace(/\*\*/g, "")}
-          </p>
+          </p>,
         )
       }
+      // Handle progress bars (custom)
+      else if (line.includes("█") || line.includes("░")) {
+        elements.push(
+          <p key={i} className="mb-1 font-mono text-xs">
+            {line}
+          </p>,
+        )
+      }
+      // Empty lines
+      else if (line.trim() === "") {
+        elements.push(<div key={i} className="h-2" />)
+      }
       // Regular paragraph
-      return (
-        <p key={i} className="mb-1 last:mb-0">
-          {line.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}
-        </p>
-      )
-    })
+      else {
+        elements.push(
+          <p key={i} className="mb-1 last:mb-0">
+            {line.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}
+          </p>,
+        )
+      }
+
+      i++
+    }
+
+    return elements
   }
 
   return (
@@ -741,17 +1315,6 @@ Tenta ser mais específico na tua pergunta, por exemplo:
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {error && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setError(null)}
-              className="rounded-xl"
-              title="Limpar erro"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          )}
           {onClose && (
             <Button variant="ghost" size="icon" onClick={onClose} className="rounded-xl">
               <XIcon className="h-4 w-4" />
@@ -818,7 +1381,6 @@ Tenta ser mais específico na tua pergunta, por exemplo:
             </div>
           ))}
 
-          {/* Loading indicator */}
           {isLoading && (
             <div className="flex gap-3 justify-start">
               <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shrink-0">
@@ -827,7 +1389,7 @@ Tenta ser mais específico na tua pergunta, por exemplo:
               <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-muted rounded-bl-md">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm text-muted-foreground">A analisar...</span>
+                  <span className="text-sm text-muted-foreground">A analisar os teus dados...</span>
                 </div>
               </div>
             </div>
@@ -850,7 +1412,7 @@ Tenta ser mais específico na tua pergunta, por exemplo:
           </Button>
         </form>
         <p className="text-[10px] text-muted-foreground text-center mt-2">
-          CashBot analisa os teus dados financeiros para dar respostas personalizadas.
+          CashBot analisa os teus dados financeiros reais para respostas personalizadas.
         </p>
       </div>
     </div>

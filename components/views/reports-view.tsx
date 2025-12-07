@@ -1,23 +1,8 @@
 "use client"
 
 import { useFinance } from "@/components/providers/finance-provider"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-} from "recharts"
 import { useMemo, useState } from "react"
-import { eachMonthOfInterval, format, startOfYear, endOfYear, subMonths, startOfMonth, endOfMonth } from "date-fns"
+import { format, startOfYear, endOfYear, subMonths, startOfMonth, endOfMonth, eachMonthOfInterval } from "date-fns"
 import { pt } from "date-fns/locale"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -33,12 +18,134 @@ import {
   BarChart3,
   PieChartIcon,
   LineChartIcon,
-  Download,
   FileText,
+  Download,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import dynamic from "next/dynamic"
+
+const RechartsComponents = dynamic(
+  () =>
+    import("recharts").then((mod) => ({
+      default: ({ children, ...props }: any) => <>{children}</>,
+      BarChart: mod.BarChart,
+      Bar: mod.Bar,
+      XAxis: mod.XAxis,
+      YAxis: mod.YAxis,
+      CartesianGrid: mod.CartesianGrid,
+      Tooltip: mod.Tooltip,
+      ResponsiveContainer: mod.ResponsiveContainer,
+      Legend: mod.Legend,
+      PieChart: mod.PieChart,
+      Pie: mod.Pie,
+      Cell: mod.Cell,
+      AreaChart: mod.AreaChart,
+      Area: mod.Area,
+    })),
+  { ssr: false },
+)
+
+// Simple charts without recharts for reliability
+function SimpleBarChart({ data }: { data: { name: string; Receitas: number; Despesas: number }[] }) {
+  const maxValue = Math.max(...data.flatMap((d) => [d.Receitas, d.Despesas]), 1)
+
+  return (
+    <div className="space-y-3">
+      {data.map((item) => (
+        <div key={item.name} className="space-y-1">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">{item.name}</span>
+            <div className="flex gap-4 text-xs">
+              <span className="text-emerald-500">+€{item.Receitas.toFixed(0)}</span>
+              <span className="text-red-500">-€{item.Despesas.toFixed(0)}</span>
+            </div>
+          </div>
+          <div className="flex gap-1 h-6">
+            <div
+              className="bg-emerald-500 rounded-sm transition-all"
+              style={{ width: `${(item.Receitas / maxValue) * 50}%` }}
+            />
+            <div
+              className="bg-red-500 rounded-sm transition-all"
+              style={{ width: `${(item.Despesas / maxValue) * 50}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SimplePieChart({ data }: { data: { name: string; value: number; color: string; percentage: string }[] }) {
+  const total = data.reduce((acc, d) => acc + d.value, 0)
+
+  return (
+    <div className="space-y-3">
+      {data.map((item, index) => (
+        <div key={item.name} className="flex items-center gap-3">
+          <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium truncate">{item.name}</span>
+              <span className="text-sm text-muted-foreground">€{item.value.toFixed(2)}</span>
+            </div>
+            <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
+              />
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs flex-shrink-0">
+            {item.percentage}%
+          </Badge>
+        </div>
+      ))}
+      {data.length === 0 && <p className="text-center text-muted-foreground py-4">Sem dados disponíveis</p>}
+    </div>
+  )
+}
+
+function SimpleAreaChart({ data }: { data: { name: string; Receitas: number; Despesas: number; Saldo: number }[] }) {
+  const maxValue = Math.max(...data.flatMap((d) => [d.Receitas, d.Despesas, Math.abs(d.Saldo)]), 1)
+
+  return (
+    <div className="space-y-4">
+      {data.map((item) => (
+        <div key={item.name} className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-medium">{item.name}</span>
+            <span className={`text-sm font-bold ${item.Saldo >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+              {item.Saldo >= 0 ? "+" : ""}€{item.Saldo.toFixed(0)}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Receitas</div>
+              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-500 rounded-full"
+                  style={{ width: `${(item.Receitas / maxValue) * 100}%` }}
+                />
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Despesas</div>
+              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-red-500 rounded-full"
+                  style={{ width: `${(item.Despesas / maxValue) * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 const COLORS = {
   income: "#22c55e",
@@ -69,16 +176,13 @@ export function ReportsView() {
 
       return {
         name: format(month, "MMM", { locale: pt }),
-        fullName: format(month, "MMMM", { locale: pt }),
         Receitas: income,
         Despesas: expenses,
-        Poupança: income - expenses,
-        Investimentos: monthTrans.filter((t) => t.type === "investment").reduce((acc, t) => acc + t.amount, 0),
       }
     })
   }, [transactions])
 
-  // Calculate category breakdown for current month
+  // Calculate category breakdown
   const categoryData = useMemo(() => {
     const now = new Date()
     const start = startOfMonth(now)
@@ -201,22 +305,6 @@ export function ReportsView() {
       .slice(0, 5)
   }, [transactions])
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-          <p className="font-medium mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: €{entry.value?.toFixed(2) || "0.00"}
-            </p>
-          ))}
-        </div>
-      )
-    }
-    return null
-  }
-
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
@@ -324,7 +412,7 @@ export function ReportsView() {
         </Card>
       </div>
 
-      {/* Main Charts */}
+      {/* Main Content */}
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
           <TabsTrigger value="overview" className="gap-2">
@@ -351,90 +439,64 @@ export function ReportsView() {
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="text-lg">Evolução Anual</CardTitle>
-                <CardDescription>Comparativo mensal de receitas, despesas e investimentos</CardDescription>
+                <CardDescription>Comparativo mensal de receitas e despesas</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-[350px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={yearlyData} barGap={2}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                        tickFormatter={(val) => `€${val}`}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend />
-                      <Bar dataKey="Receitas" fill={COLORS.income} radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Despesas" fill={COLORS.expense} radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Investimentos" fill={COLORS.investment} radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                <SimpleBarChart data={yearlyData} />
               </CardContent>
             </Card>
 
-            {/* Summary Card */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Resumo do Património</CardTitle>
                 <CardDescription>Distribuição atual dos seus ativos</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Wallet className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total</p>
-                        <p className="font-bold">€{kpis.totalBalance.toFixed(2)}</p>
-                      </div>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Wallet className="h-5 w-5 text-primary" />
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                        <PiggyBank className="h-5 w-5 text-amber-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Poupança</p>
-                        <p className="font-bold text-amber-500">€{kpis.totalSavings.toFixed(2)}</p>
-                      </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total</p>
+                      <p className="font-bold">€{kpis.totalBalance.toFixed(2)}</p>
                     </div>
-                    <Badge variant="outline">
-                      {kpis.totalBalance > 0 ? ((kpis.totalSavings / kpis.totalBalance) * 100).toFixed(0) : 0}%
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                        <TrendingUp className="h-5 w-5 text-blue-500" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Investimentos</p>
-                        <p className="font-bold text-blue-500">€{kpis.totalInvestments.toFixed(2)}</p>
-                      </div>
-                    </div>
-                    <Badge variant="outline">
-                      {kpis.totalBalance > 0 ? ((kpis.totalInvestments / kpis.totalBalance) * 100).toFixed(0) : 0}%
-                    </Badge>
                   </div>
                 </div>
 
+                <div className="flex items-center justify-between p-3 rounded-lg bg-amber-500/10">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <PiggyBank className="h-5 w-5 text-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Poupança</p>
+                      <p className="font-bold text-amber-500">€{kpis.totalSavings.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <Badge variant="outline">
+                    {kpis.totalBalance > 0 ? ((kpis.totalSavings / kpis.totalBalance) * 100).toFixed(0) : 0}%
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                      <TrendingUp className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Investimentos</p>
+                      <p className="font-bold text-blue-500">€{kpis.totalInvestments.toFixed(2)}</p>
+                    </div>
+                  </div>
+                  <Badge variant="outline">
+                    {kpis.totalBalance > 0 ? ((kpis.totalInvestments / kpis.totalBalance) * 100).toFixed(0) : 0}%
+                  </Badge>
+                </div>
+
                 <div className="pt-4 border-t">
-                  <p className="text-sm text-muted-foreground mb-2">Transações este mês</p>
-                  <p className="text-3xl font-bold">{kpis.transactionsCount}</p>
+                  <p className="text-sm text-muted-foreground mb-1">Transações este mês</p>
+                  <p className="text-2xl font-bold">{kpis.transactionsCount}</p>
                 </div>
               </CardContent>
             </Card>
@@ -449,135 +511,22 @@ export function ReportsView() {
               <CardDescription>Evolução das receitas, despesas e saldo líquido</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData}>
-                    <defs>
-                      <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={COLORS.income} stopOpacity={0.3} />
-                        <stop offset="95%" stopColor={COLORS.income} stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={COLORS.expense} stopOpacity={0.3} />
-                        <stop offset="95%" stopColor={COLORS.expense} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis
-                      dataKey="name"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                    />
-                    <YAxis
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      tickFormatter={(val) => `€${val}`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Area
-                      type="monotone"
-                      dataKey="Receitas"
-                      stroke={COLORS.income}
-                      fillOpacity={1}
-                      fill="url(#colorIncome)"
-                      strokeWidth={2}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="Despesas"
-                      stroke={COLORS.expense}
-                      fillOpacity={1}
-                      fill="url(#colorExpense)"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              <SimpleAreaChart data={trendData} />
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Categories Tab */}
         <TabsContent value="categories" className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Despesas por Categoria</CardTitle>
-                <CardDescription>Distribuição das despesas deste mês</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[350px]">
-                  {categoryData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={categoryData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={120}
-                          paddingAngle={2}
-                          dataKey="value"
-                        >
-                          {categoryData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value: number) => `€${value.toFixed(2)}`} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-muted-foreground">
-                      Sem despesas registadas este mês
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Ranking de Categorias</CardTitle>
-                <CardDescription>Ordenado por valor gasto</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {categoryData.map((cat, index) => (
-                    <div key={cat.name} className="flex items-center gap-3">
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                        style={{ backgroundColor: cat.color + "20", color: cat.color }}
-                      >
-                        {index + 1}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium">{cat.name}</span>
-                          <span className="text-sm text-muted-foreground">€{cat.value.toFixed(2)}</span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{ width: `${cat.percentage}%`, backgroundColor: cat.color }}
-                          />
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {cat.percentage}%
-                      </Badge>
-                    </div>
-                  ))}
-                  {categoryData.length === 0 && (
-                    <p className="text-center text-muted-foreground py-8">Sem despesas registadas este mês</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Despesas por Categoria</CardTitle>
+              <CardDescription>Distribuição das despesas deste mês</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SimplePieChart data={categoryData} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Details Tab */}
@@ -636,7 +585,7 @@ export function ReportsView() {
                         </div>
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>{progress.toFixed(1)}% concluído</span>
-                          <span>Faltam €{(goal.target_amount - goal.current_amount).toFixed(2)}</span>
+                          <span>Faltam €{Math.max(goal.target_amount - goal.current_amount, 0).toFixed(2)}</span>
                         </div>
                       </div>
                     )
