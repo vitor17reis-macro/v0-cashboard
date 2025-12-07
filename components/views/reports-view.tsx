@@ -13,9 +13,8 @@ import {
   PieChart,
   Pie,
   Cell,
-  Line,
-  Area,
   AreaChart,
+  Area,
 } from "recharts"
 import { useMemo, useState } from "react"
 import { eachMonthOfInterval, format, startOfYear, endOfYear, subMonths, startOfMonth, endOfMonth } from "date-fns"
@@ -51,7 +50,7 @@ const COLORS = {
 }
 
 export function ReportsView() {
-  const { transactions, accounts, goals, categories } = useFinance()
+  const { transactions, accounts, goals } = useFinance()
   const [period, setPeriod] = useState("year")
 
   // Calculate yearly data
@@ -90,6 +89,7 @@ export function ReportsView() {
       return t.type === "expense" && d >= start && d <= end
     })
 
+    const totalExpenses = monthExpenses.reduce((acc, t) => acc + t.amount, 0)
     const byCategory: Record<string, number> = {}
     monthExpenses.forEach((t) => {
       const cat = t.category || "Outros"
@@ -102,7 +102,7 @@ export function ReportsView() {
         name,
         value,
         color: COLORS.categories[index % COLORS.categories.length],
-        percentage: ((value / monthExpenses.reduce((acc, t) => acc + t.amount, 0)) * 100).toFixed(1),
+        percentage: totalExpenses > 0 ? ((value / totalExpenses) * 100).toFixed(1) : "0",
       }))
   }, [transactions])
 
@@ -208,7 +208,7 @@ export function ReportsView() {
           <p className="font-medium mb-2">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: €{entry.value.toFixed(2)}
+              {entry.name}: €{entry.value?.toFixed(2) || "0.00"}
             </p>
           ))}
         </div>
@@ -411,7 +411,9 @@ export function ReportsView() {
                         <p className="font-bold text-amber-500">€{kpis.totalSavings.toFixed(2)}</p>
                       </div>
                     </div>
-                    <Badge variant="outline">{((kpis.totalSavings / kpis.totalBalance) * 100 || 0).toFixed(0)}%</Badge>
+                    <Badge variant="outline">
+                      {kpis.totalBalance > 0 ? ((kpis.totalSavings / kpis.totalBalance) * 100).toFixed(0) : 0}%
+                    </Badge>
                   </div>
 
                   <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10">
@@ -425,7 +427,7 @@ export function ReportsView() {
                       </div>
                     </div>
                     <Badge variant="outline">
-                      {((kpis.totalInvestments / kpis.totalBalance) * 100 || 0).toFixed(0)}%
+                      {kpis.totalBalance > 0 ? ((kpis.totalInvestments / kpis.totalBalance) * 100).toFixed(0) : 0}%
                     </Badge>
                   </div>
                 </div>
@@ -491,13 +493,6 @@ export function ReportsView() {
                       fill="url(#colorExpense)"
                       strokeWidth={2}
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="Saldo"
-                      stroke={COLORS.primary}
-                      strokeWidth={3}
-                      dot={{ fill: COLORS.primary, strokeWidth: 2 }}
-                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -515,26 +510,31 @@ export function ReportsView() {
               </CardHeader>
               <CardContent>
                 <div className="h-[350px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={120}
-                        paddingAngle={2}
-                        dataKey="value"
-                        label={({ name, percentage }) => `${name} (${percentage}%)`}
-                        labelLine={{ stroke: "hsl(var(--muted-foreground))", strokeWidth: 1 }}
-                      >
-                        {categoryData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number) => `€${value.toFixed(2)}`} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {categoryData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={categoryData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={120}
+                          paddingAngle={2}
+                          dataKey="value"
+                        >
+                          {categoryData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => `€${value.toFixed(2)}`} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-muted-foreground">
+                      Sem despesas registadas este mês
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
