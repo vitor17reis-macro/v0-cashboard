@@ -4,7 +4,6 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   SendIcon,
   XIcon,
@@ -17,7 +16,9 @@ import {
   Lightbulb,
   GraduationCap,
   HelpCircle,
+  ChevronDown,
 } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 interface Message {
   id: string
@@ -29,8 +30,53 @@ interface AIChatbotProps {
   onClose?: () => void
 }
 
+const topicQuestions = {
+  saldo: [
+    "Qual é o meu saldo total?",
+    "Quanto tenho na conta à ordem?",
+    "Qual o meu património líquido?",
+    "Quanto gastei este mês?",
+    "Qual foi a minha maior despesa?",
+  ],
+  metas: [
+    "Como estão as minhas metas?",
+    "Quanto falta para atingir as metas?",
+    "Qual meta está mais próxima?",
+    "Como posso acelerar as minhas metas?",
+    "Devo criar uma nova meta?",
+  ],
+  investir: [
+    "Dicas para começar a investir",
+    "O que são ETFs?",
+    "Qual a diferença entre ações e ETFs?",
+    "Quanto devo investir por mês?",
+    "Quais são os riscos de investir?",
+  ],
+  poupar: [
+    "Como posso poupar mais dinheiro?",
+    "Qual a regra 50/30/20?",
+    "Onde posso cortar despesas?",
+    "Quanto devo ter em fundo de emergência?",
+    "Dicas para reduzir gastos fixos",
+  ],
+  aprender: [
+    "Explica-me o que são ETFs",
+    "O que são juros compostos?",
+    "Como funciona a diversificação?",
+    "O que é inflação e como me afeta?",
+    "Diferença entre poupar e investir",
+  ],
+  ajuda: [
+    "O que podes fazer?",
+    "Como adiciono uma transação?",
+    "Como crio uma automação?",
+    "Como funciona o histórico?",
+    "Como exporto os meus dados?",
+  ],
+}
+
 export function AIChatbot({ onClose }: AIChatbotProps) {
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
@@ -43,16 +89,17 @@ export function AIChatbot({ onClose }: AIChatbotProps) {
 • **Educação financeira** - Explicar conceitos como ETFs, juros compostos
 • **Usar o CashBoard** - Guiar-te nas funcionalidades
 
-Pergunta-me o que quiseres!`,
+Clica num dos botões abaixo ou escreve a tua pergunta!`,
     },
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
 
   const scrollToBottom = () => {
     setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
       }
     }, 100)
   }
@@ -73,6 +120,7 @@ Pergunta-me o que quiseres!`,
     setMessages((prev) => [...prev, userMessage])
     setInput("")
     setIsLoading(true)
+    setSelectedTopic(null)
 
     try {
       const response = await fetch("/api/chat", {
@@ -130,14 +178,12 @@ Pergunta-me o que quiseres!`,
         }
       }
 
-      // If no content was received, show a fallback message
       if (!fullContent) {
         const fallbackResponse = generateLocalResponse(messageText)
         setMessages((prev) => prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fallbackResponse } : m)))
       }
     } catch (error) {
       console.error("[v0] Chat error:", error)
-      // Generate local response as fallback
       const fallbackResponse = generateLocalResponse(messageText)
       const assistantMessage: Message = {
         id: `assistant-${Date.now()}`,
@@ -145,7 +191,6 @@ Pergunta-me o que quiseres!`,
         content: fallbackResponse,
       }
       setMessages((prev) => {
-        // Remove empty assistant message if exists
         const filtered = prev.filter((m) => m.role !== "assistant" || m.content !== "")
         return [...filtered, assistantMessage]
       })
@@ -216,6 +261,27 @@ Também podes ver o saldo individual de cada conta na secção **As Minhas Conta
    • Visualizar o objetivo ajuda a manter o foco`
     }
 
+    if (lowerQuery.includes("juros compostos")) {
+      return `**Juros Compostos** são os "juros sobre juros" - o conceito mais poderoso em finanças!
+
+**Como funcionam:**
+• No 1º ano: ganhas juros sobre o capital inicial
+• No 2º ano: ganhas juros sobre capital + juros anteriores
+• E assim sucessivamente...
+
+**Exemplo prático:**
+• Investes 1.000€ a 7% ao ano
+• Ano 1: 1.070€ (+70€)
+• Ano 10: 1.967€ (+967€)
+• Ano 30: 7.612€ (+6.612€)
+
+**A regra dos 72:**
+Divide 72 pela taxa de juro para saber em quantos anos duplicas o dinheiro.
+• 7% → 72/7 = ~10 anos para duplicar
+
+**Conclusão:** Quanto mais cedo começares, mais os juros compostos trabalham por ti!`
+    }
+
     if (lowerQuery.includes("ajuda") || lowerQuery.includes("fazer") || lowerQuery.includes("funcionalidade")) {
       return `**O que posso fazer por ti:**
 
@@ -250,17 +316,13 @@ Tenta ser mais específico na tua pergunta para eu poder ajudar melhor!`
     sendMessage(input)
   }
 
-  const handleQuickAction = (query: string) => {
-    sendMessage(query)
-  }
-
   const quickActions = [
-    { icon: Wallet, label: "Saldo", query: "Qual é o meu saldo total?" },
-    { icon: Target, label: "Metas", query: "Como estão as minhas metas?" },
-    { icon: TrendingUp, label: "Investir", query: "Dicas para começar a investir" },
-    { icon: Lightbulb, label: "Poupar", query: "Como posso poupar mais dinheiro?" },
-    { icon: GraduationCap, label: "Aprender", query: "Explica-me o que são ETFs" },
-    { icon: HelpCircle, label: "Ajuda", query: "O que podes fazer?" },
+    { icon: Wallet, label: "Saldo", topic: "saldo" },
+    { icon: Target, label: "Metas", topic: "metas" },
+    { icon: TrendingUp, label: "Investir", topic: "investir" },
+    { icon: Lightbulb, label: "Poupar", topic: "poupar" },
+    { icon: GraduationCap, label: "Aprender", topic: "aprender" },
+    { icon: HelpCircle, label: "Ajuda", topic: "ajuda" },
   ]
 
   const renderFormattedText = (text: string) => {
@@ -274,7 +336,7 @@ Tenta ser mais específico na tua pergunta para eu poder ajudar melhor!`
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
+      <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-primary/10 via-primary/5 to-transparent shrink-0">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
             <Sparkles className="h-5 w-5 text-primary-foreground" />
@@ -291,27 +353,37 @@ Tenta ser mais específico na tua pergunta para eu poder ajudar melhor!`
         )}
       </div>
 
-      {/* Quick Actions */}
-      <div className="p-3 border-b">
+      <div className="p-3 border-b shrink-0">
         <div className="grid grid-cols-3 gap-2">
           {quickActions.map((action) => (
-            <Button
-              key={action.label}
-              variant="outline"
-              size="sm"
-              className="h-auto py-2 px-3 flex flex-col gap-1 rounded-xl hover:bg-primary/10 hover:border-primary/30 bg-transparent"
-              onClick={() => handleQuickAction(action.query)}
-              disabled={isLoading}
-            >
-              <action.icon className="h-4 w-4 text-primary" />
-              <span className="text-xs">{action.label}</span>
-            </Button>
+            <DropdownMenu key={action.label}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-auto py-2 px-3 flex flex-col gap-1 rounded-xl hover:bg-primary/10 hover:border-primary/30 bg-transparent"
+                  disabled={isLoading}
+                >
+                  <action.icon className="h-4 w-4 text-primary" />
+                  <span className="text-xs flex items-center gap-1">
+                    {action.label}
+                    <ChevronDown className="h-3 w-3" />
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                {topicQuestions[action.topic as keyof typeof topicQuestions].map((question, idx) => (
+                  <DropdownMenuItem key={idx} onClick={() => sendMessage(question)} className="cursor-pointer">
+                    {question}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           ))}
         </div>
       </div>
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef as React.RefObject<HTMLDivElement>}>
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4" style={{ minHeight: 0 }}>
         <div className="space-y-4">
           {messages.map((message) => (
             <div key={message.id} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -357,10 +429,10 @@ Tenta ser mais específico na tua pergunta para eu poder ajudar melhor!`
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Input */}
-      <div className="p-4 border-t">
+      <div className="p-4 border-t shrink-0">
         <form onSubmit={handleSubmit} className="flex gap-2">
           <Input
             value={input}

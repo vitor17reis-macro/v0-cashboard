@@ -11,6 +11,13 @@ import { format, subMonths, startOfMonth, endOfMonth, parseISO, isWithinInterval
 import { pt } from "date-fns/locale"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 
+const CHART_COLORS = {
+  income: "#22c55e", // green-500
+  expense: "#ef4444", // red-500
+  savings: "#f97316", // orange-500
+  investment: "#3b82f6", // blue-500
+}
+
 export function MonthlyComparison() {
   const { transactions, categories, accounts = [] } = useFinance()
   const { formatCurrency } = useCurrency()
@@ -113,16 +120,16 @@ export function MonthlyComparison() {
       label: "Receitas",
       current: comparisonData.current.income,
       previous: comparisonData.previous.income,
-      color: "text-income",
-      bgColor: "bg-income/10",
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
       inverse: false,
     },
     {
       label: "Despesas",
       current: comparisonData.current.expense,
       previous: comparisonData.previous.expense,
-      color: "text-expense",
-      bgColor: "bg-expense/10",
+      color: "text-red-500",
+      bgColor: "bg-red-500/10",
       inverse: true,
     },
   ]
@@ -174,30 +181,30 @@ export function MonthlyComparison() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border-cyan-500/20">
+        <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-cyan-500/20 flex items-center justify-center">
-                <PiggyBank className="h-6 w-6 text-cyan-600" />
+              <div className="h-12 w-12 rounded-xl bg-orange-500/20 flex items-center justify-center">
+                <PiggyBank className="h-6 w-6 text-orange-600" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total em Poupança</p>
-                <p className="text-2xl font-bold text-cyan-600">{formatCurrency(totalSavings)}</p>
+                <p className="text-2xl font-bold text-orange-600">{formatCurrency(totalSavings)}</p>
                 <p className="text-xs text-muted-foreground">Saldo atual das contas poupança</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-violet-500/10 to-violet-600/5 border-violet-500/20">
+        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-violet-500/20 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-violet-600" />
+              <div className="h-12 w-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-blue-600" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Investido</p>
-                <p className="text-2xl font-bold text-violet-600">{formatCurrency(totalInvestments)}</p>
+                <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalInvestments)}</p>
                 <p className="text-xs text-muted-foreground">Saldo atual das contas investimento</p>
               </div>
             </div>
@@ -211,7 +218,7 @@ export function MonthlyComparison() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Saldo do Mês</p>
-              <p className={`text-3xl font-bold ${currentBalance >= 0 ? "text-income" : "text-expense"}`}>
+              <p className={`text-3xl font-bold ${currentBalance >= 0 ? "text-green-500" : "text-red-500"}`}>
                 {formatCurrency(currentBalance)}
               </p>
               <p className="text-sm text-muted-foreground mt-1">Mês anterior: {formatCurrency(previousBalance)}</p>
@@ -224,7 +231,7 @@ export function MonthlyComparison() {
         </CardContent>
       </Card>
 
-      {/* Summary Cards - only Receitas and Despesas */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4">
         {summaryCards.map((card) => {
           const change = getChangeIndicator(card.current, card.previous, card.inverse)
@@ -256,30 +263,31 @@ export function MonthlyComparison() {
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} barGap={8}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "hsl(var(--muted-foreground))" }}
-                />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#6b7280" }} />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "hsl(var(--muted-foreground))" }}
+                  tick={{ fill: "#6b7280" }}
                   tickFormatter={(value) => `€${value}`}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e5e7eb",
                     borderRadius: "8px",
                   }}
                   formatter={(value: number) => formatCurrency(value)}
                 />
-                <Legend />
-                <Bar dataKey="Receitas" fill="hsl(var(--income))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Despesas" fill="hsl(var(--expense))" radius={[4, 4, 0, 0]} />
+                <Legend
+                  formatter={(value) => (
+                    <span style={{ color: value === "Receitas" ? CHART_COLORS.income : CHART_COLORS.expense }}>
+                      {value}
+                    </span>
+                  )}
+                />
+                <Bar dataKey="Receitas" fill={CHART_COLORS.income} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Despesas" fill={CHART_COLORS.expense} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

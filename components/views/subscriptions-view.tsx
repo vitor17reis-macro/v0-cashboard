@@ -3,15 +3,12 @@
 import { useFinance } from "@/components/providers/finance-provider"
 import { format, parseISO } from "date-fns"
 import { pt } from "date-fns/locale"
-import { CalendarIcon, CreditCardIcon, CheckCircle2Icon } from "lucide-react"
+import { CalendarIcon, CreditCardIcon, CheckCircle2Icon, ArrowUpIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 export function SubscriptionsView() {
   const { transactions, categories } = useFinance()
 
-  // Filter only recurring transactions (templates) or transactions marked as recurring
-  // In our current logic, we mark "isRecurring" on the transaction.
-  // We want to list unique subscriptions.
   const subscriptions = transactions.filter((t) => t.isRecurring)
 
   const getCategoryName = (id: string) => {
@@ -19,10 +16,13 @@ export function SubscriptionsView() {
   }
 
   const totalMonthlyCommitment = subscriptions.reduce((acc, t) => {
-    if (t.recurringFrequency === "monthly") return acc + t.amount
-    if (t.recurringFrequency === "weekly") return acc + t.amount * 4
-    if (t.recurringFrequency === "yearly") return acc + t.amount / 12
-    return acc
+    let monthlyAmount = t.amount
+    if (t.recurringFrequency === "weekly") monthlyAmount = t.amount * 4
+    else if (t.recurringFrequency === "yearly") monthlyAmount = t.amount / 12
+
+    // If it's income, subtract from commitment (it's money coming in)
+    // If it's expense, add to commitment (it's money going out)
+    return t.type === "income" ? acc - monthlyAmount : acc + monthlyAmount
   }, 0)
 
   return (
@@ -34,8 +34,8 @@ export function SubscriptionsView() {
         </div>
         <div className="bg-card/50 border border-border/50 p-4 rounded-xl backdrop-blur-sm">
           <p className="text-sm text-muted-foreground">Custo Mensal Estimado</p>
-          <p className="text-2xl font-bold text-primary">
-            {totalMonthlyCommitment.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
+          <p className={`text-2xl font-bold ${totalMonthlyCommitment >= 0 ? "text-red-500" : "text-green-500"}`}>
+            {Math.abs(totalMonthlyCommitment).toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
           </p>
         </div>
       </div>
@@ -50,47 +50,68 @@ export function SubscriptionsView() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {subscriptions.map((sub) => (
-            <div
-              key={sub.id}
-              className="group relative overflow-hidden rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 hover:shadow-md transition-all hover:bg-card/80"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-2 rounded-full bg-primary/10 text-primary">
-                  <CalendarIcon className="h-5 w-5" />
-                </div>
-                <Badge variant="outline" className="capitalize">
-                  {sub.recurringFrequency === "monthly"
-                    ? "Mensal"
-                    : sub.recurringFrequency === "weekly"
-                      ? "Semanal"
-                      : "Anual"}
-                </Badge>
-              </div>
+          {subscriptions.map((sub) => {
+            const isIncome = sub.type === "income"
 
-              <h3 className="font-bold text-lg mb-1">{sub.description}</h3>
-              <p className="text-sm text-muted-foreground mb-4">{getCategoryName(sub.category)}</p>
-
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground">Valor</p>
-                  <p className="text-xl font-bold font-mono text-expense">
-                    -{sub.amount.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
-                  </p>
-                </div>
-                {sub.nextDueDate && (
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Próxima cobrança</p>
-                    <p className="text-sm font-medium">{format(parseISO(sub.nextDueDate), "d MMM", { locale: pt })}</p>
+            return (
+              <div
+                key={sub.id}
+                className="group relative overflow-hidden rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm p-6 hover:shadow-md transition-all hover:bg-card/80"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div
+                    className={`p-2 rounded-full ${isIncome ? "bg-green-500/10 text-green-500" : "bg-primary/10 text-primary"}`}
+                  >
+                    {isIncome ? <ArrowUpIcon className="h-5 w-5" /> : <CalendarIcon className="h-5 w-5" />}
                   </div>
-                )}
-              </div>
+                  <div className="flex gap-2">
+                    <Badge
+                      variant="outline"
+                      className={
+                        isIncome
+                          ? "bg-green-500/10 text-green-500 border-green-500/20"
+                          : "bg-red-500/10 text-red-500 border-red-500/20"
+                      }
+                    >
+                      {isIncome ? "Receita" : "Despesa"}
+                    </Badge>
+                    <Badge variant="outline" className="capitalize">
+                      {sub.recurringFrequency === "monthly"
+                        ? "Mensal"
+                        : sub.recurringFrequency === "weekly"
+                          ? "Semanal"
+                          : "Anual"}
+                    </Badge>
+                  </div>
+                </div>
 
-              <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <CheckCircle2Icon className="h-4 w-4 text-green-500" />
+                <h3 className="font-bold text-lg mb-1">{sub.description}</h3>
+                <p className="text-sm text-muted-foreground mb-4">{getCategoryName(sub.category)}</p>
+
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Valor</p>
+                    <p className={`text-xl font-bold font-mono ${isIncome ? "text-green-500" : "text-red-500"}`}>
+                      {isIncome ? "+" : "-"}
+                      {sub.amount.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })}
+                    </p>
+                  </div>
+                  {sub.nextDueDate && (
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Próxima cobrança</p>
+                      <p className="text-sm font-medium">
+                        {format(parseISO(sub.nextDueDate), "d MMM", { locale: pt })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <CheckCircle2Icon className="h-4 w-4 text-green-500" />
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
