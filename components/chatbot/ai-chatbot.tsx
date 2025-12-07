@@ -19,6 +19,7 @@ import {
   ChevronDown,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { createBrowserClient } from "@supabase/ssr"
 
 interface Message {
   id: string
@@ -32,45 +33,45 @@ interface AIChatbotProps {
 
 const topicQuestions = {
   saldo: [
-    "Qual é o meu saldo total?",
-    "Quanto tenho na conta à ordem?",
-    "Qual o meu património líquido?",
+    "Qual é o meu saldo total atual?",
+    "Quanto tenho em cada conta?",
     "Quanto gastei este mês?",
-    "Qual foi a minha maior despesa?",
+    "Qual foi a minha maior despesa recente?",
+    "Estou a gastar mais do que ganho?",
   ],
   metas: [
-    "Como estão as minhas metas?",
-    "Quanto falta para atingir as metas?",
-    "Qual meta está mais próxima?",
-    "Como posso acelerar as minhas metas?",
-    "Devo criar uma nova meta?",
+    "Como estão as minhas metas financeiras?",
+    "Quanto falta para atingir cada meta?",
+    "Qual meta devo priorizar?",
+    "Como posso atingir as metas mais rápido?",
+    "Devo criar uma nova meta de poupança?",
   ],
   investir: [
-    "Dicas para começar a investir",
-    "O que são ETFs?",
-    "Qual a diferença entre ações e ETFs?",
-    "Quanto devo investir por mês?",
-    "Quais são os riscos de investir?",
+    "Por onde devo começar a investir?",
+    "O que são ETFs e como funcionam?",
+    "Quanto do meu salário devo investir?",
+    "Qual a diferença entre ações e fundos?",
+    "É melhor investir tudo de uma vez ou aos poucos?",
   ],
   poupar: [
-    "Como posso poupar mais dinheiro?",
-    "Qual a regra 50/30/20?",
     "Onde posso cortar despesas?",
+    "Como aplicar a regra 50/30/20?",
     "Quanto devo ter em fundo de emergência?",
-    "Dicas para reduzir gastos fixos",
+    "Quais despesas posso eliminar?",
+    "Como automatizar a minha poupança?",
   ],
   aprender: [
-    "Explica-me o que são ETFs",
     "O que são juros compostos?",
     "Como funciona a diversificação?",
-    "O que é inflação e como me afeta?",
-    "Diferença entre poupar e investir",
+    "O que é inflação e como me protejo?",
+    "Qual a diferença entre poupar e investir?",
+    "O que é um fundo de emergência?",
   ],
   ajuda: [
-    "O que podes fazer?",
+    "O que podes fazer por mim?",
     "Como adiciono uma transação?",
     "Como crio uma automação?",
-    "Como funciona o histórico?",
+    "Como funcionam as metas?",
     "Como exporto os meus dados?",
   ],
 }
@@ -81,20 +82,33 @@ export function AIChatbot({ onClose }: AIChatbotProps) {
     {
       id: "welcome",
       role: "assistant",
-      content: `Olá! Sou o assistente inteligente do CashBoard. Posso ajudar-te com:
+      content: `Olá! Sou o assistente financeiro do CashBoard, powered by Claude.
 
-• **Análise financeira** - Consultar saldo, despesas, receitas
-• **Conselhos de poupança** - Dicas personalizadas para poupar
-• **Planos financeiros** - Criar estratégias para atingir metas
-• **Educação financeira** - Explicar conceitos como ETFs, juros compostos
-• **Usar o CashBoard** - Guiar-te nas funcionalidades
+Posso ajudar-te com:
+• **Analisar as tuas finanças** - Saldo, despesas, receitas
+• **Dar conselhos personalizados** - Baseados nos teus dados reais
+• **Criar planos de poupança** - Estratégias para atingir metas
+• **Ensinar conceitos financeiros** - ETFs, juros compostos, etc.
 
-Clica num dos botões abaixo ou escreve a tua pergunta!`,
+Escolhe um tema acima ou escreve a tua pergunta!`,
     },
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        setUserId(data.user.id)
+      }
+    })
+  }, [])
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -120,17 +134,24 @@ Clica num dos botões abaixo ou escreve a tua pergunta!`,
     setMessages((prev) => [...prev, userMessage])
     setInput("")
     setIsLoading(true)
-    setSelectedTopic(null)
+
+    const assistantMessage: Message = {
+      id: `assistant-${Date.now()}`,
+      role: "assistant",
+      content: "",
+    }
+    setMessages((prev) => [...prev, assistantMessage])
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
+          messages: [...messages.filter((m) => m.id !== "welcome"), userMessage].map((m) => ({
             role: m.role,
             content: m.content,
           })),
+          userId: userId,
         }),
       })
 
@@ -142,14 +163,6 @@ Clica num dos botões abaixo ou escreve a tua pergunta!`,
       if (!reader) {
         throw new Error("No reader available")
       }
-
-      const assistantMessage: Message = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: "",
-      }
-
-      setMessages((prev) => [...prev, assistantMessage])
 
       const decoder = new TextDecoder()
       let fullContent = ""
@@ -170,145 +183,46 @@ Clica num dos botões abaixo ou escreve a tua pergunta!`,
                 setMessages((prev) =>
                   prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fullContent } : m)),
                 )
+                scrollToBottom()
               }
             } catch {
-              // Skip invalid JSON
+              const text = line.slice(2).replace(/^"|"$/g, "")
+              if (text) {
+                fullContent += text
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fullContent } : m)),
+                )
+                scrollToBottom()
+              }
             }
           }
         }
       }
 
       if (!fullContent) {
-        const fallbackResponse = generateLocalResponse(messageText)
-        setMessages((prev) => prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fallbackResponse } : m)))
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMessage.id
+              ? { ...m, content: "Desculpa, não consegui processar a tua pergunta. Por favor tenta novamente." }
+              : m,
+          ),
+        )
       }
     } catch (error) {
       console.error("[v0] Chat error:", error)
-      const fallbackResponse = generateLocalResponse(messageText)
-      const assistantMessage: Message = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: fallbackResponse,
-      }
-      setMessages((prev) => {
-        const filtered = prev.filter((m) => m.role !== "assistant" || m.content !== "")
-        return [...filtered, assistantMessage]
-      })
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMessage.id
+            ? {
+                ...m,
+                content: "Ocorreu um erro ao processar a tua pergunta. Verifica a tua conexão e tenta novamente.",
+              }
+            : m,
+        ),
+      )
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const generateLocalResponse = (query: string): string => {
-    const lowerQuery = query.toLowerCase()
-
-    if (lowerQuery.includes("saldo") || lowerQuery.includes("balanço") || lowerQuery.includes("quanto tenho")) {
-      return `Para ver o teu saldo, consulta a secção **Visão Geral** no menu lateral. Lá encontras:
-
-• **Saldo Líquido** - O teu saldo atual
-• **Receitas** - Total de entradas no período
-• **Despesas** - Total de saídas no período
-• **Poupança** - Valor acumulado em poupança
-
-Também podes ver o saldo individual de cada conta na secção **As Minhas Contas**.`
-    }
-
-    if (lowerQuery.includes("meta") || lowerQuery.includes("objetivo")) {
-      return `As tuas metas financeiras estão visíveis na secção **Metas Financeiras** da Visão Geral. Para cada meta podes:
-
-• Ver o progresso atual em percentagem
-• Adicionar dinheiro clicando em **Depositar**
-• Levantar dinheiro para uma conta
-• Editar ou eliminar a meta
-
-**Dica:** Define metas SMART (Específicas, Mensuráveis, Atingíveis, Relevantes e Temporais) para maior sucesso!`
-    }
-
-    if (lowerQuery.includes("etf") || lowerQuery.includes("investir") || lowerQuery.includes("investimento")) {
-      return `**ETFs (Exchange Traded Funds)** são fundos de investimento negociados em bolsa. Funcionam assim:
-
-• **Diversificação** - Um ETF pode conter centenas de ações ou obrigações
-• **Baixo custo** - Taxas muito menores que fundos tradicionais
-• **Liquidez** - Podes comprar e vender a qualquer momento
-• **Transparência** - Sabes exatamente o que contém
-
-**ETFs populares para iniciantes:**
-• IWDA - Ações mundiais desenvolvidas
-• VWCE - Ações mundiais (incluindo emergentes)
-• AGGH - Obrigações globais
-
-**Dica:** Começa com um ETF diversificado e investe regularmente (DCA).`
-    }
-
-    if (lowerQuery.includes("poupar") || lowerQuery.includes("poupança") || lowerQuery.includes("economizar")) {
-      return `**Estratégias para poupar mais:**
-
-1. **Regra 50/30/20**
-   • 50% para necessidades (renda, comida, contas)
-   • 30% para desejos (lazer, compras)
-   • 20% para poupança e investimentos
-
-2. **Automatiza a poupança**
-   • Usa as **Automações** do CashBoard
-   • Cria uma regra para transferir X% do salário automaticamente
-
-3. **Elimina gastos invisíveis**
-   • Revê subscrições na secção **Assinaturas**
-   • Identifica despesas recorrentes desnecessárias
-
-4. **Define metas claras**
-   • Cria metas específicas (viagem, fundo emergência)
-   • Visualizar o objetivo ajuda a manter o foco`
-    }
-
-    if (lowerQuery.includes("juros compostos")) {
-      return `**Juros Compostos** são os "juros sobre juros" - o conceito mais poderoso em finanças!
-
-**Como funcionam:**
-• No 1º ano: ganhas juros sobre o capital inicial
-• No 2º ano: ganhas juros sobre capital + juros anteriores
-• E assim sucessivamente...
-
-**Exemplo prático:**
-• Investes 1.000€ a 7% ao ano
-• Ano 1: 1.070€ (+70€)
-• Ano 10: 1.967€ (+967€)
-• Ano 30: 7.612€ (+6.612€)
-
-**A regra dos 72:**
-Divide 72 pela taxa de juro para saber em quantos anos duplicas o dinheiro.
-• 7% → 72/7 = ~10 anos para duplicar
-
-**Conclusão:** Quanto mais cedo começares, mais os juros compostos trabalham por ti!`
-    }
-
-    if (lowerQuery.includes("ajuda") || lowerQuery.includes("fazer") || lowerQuery.includes("funcionalidade")) {
-      return `**O que posso fazer por ti:**
-
-• **Análise financeira** - Pergunta sobre saldo, despesas, receitas
-• **Educação** - Explico conceitos como ETFs, juros compostos, diversificação
-• **Dicas de poupança** - Estratégias personalizadas para poupar mais
-• **Planeamento** - Ajudo a criar planos para atingir objetivos
-• **Navegação** - Guio-te pelas funcionalidades do CashBoard
-
-**Funcionalidades do CashBoard:**
-• 📊 Visão Geral - Dashboard principal
-• 📜 Histórico - Todas as transações
-• 📈 Comparação - Análise de períodos
-• 📋 Relatórios - Gráficos detalhados
-• 🔮 Previsão - Projeções futuras
-• 🔄 Automações - Regras automáticas
-• 💳 Assinaturas - Gestão de subscrições`
-    }
-
-    return `Obrigado pela tua pergunta! Posso ajudar-te com:
-
-• **Análise financeira** - Consulta saldo, despesas, receitas
-• **Educação financeira** - ETFs, juros compostos, diversificação
-• **Dicas de poupança** - Estratégias para poupar mais
-• **Usar o CashBoard** - Guiar-te nas funcionalidades
-
-Tenta ser mais específico na tua pergunta para eu poder ajudar melhor!`
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -353,6 +267,7 @@ Tenta ser mais específico na tua pergunta para eu poder ajudar melhor!`
         )}
       </div>
 
+      {/* Quick Actions */}
       <div className="p-3 border-b shrink-0">
         <div className="grid grid-cols-3 gap-2">
           {quickActions.map((action) => (
@@ -383,6 +298,7 @@ Tenta ser mais específico na tua pergunta para eu poder ajudar melhor!`
         </div>
       </div>
 
+      {/* Messages */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4" style={{ minHeight: 0 }}>
         <div className="space-y-4">
           {messages.map((message) => (
@@ -415,19 +331,6 @@ Tenta ser mais específico na tua pergunta para eu poder ajudar melhor!`
               )}
             </div>
           ))}
-          {isLoading && messages[messages.length - 1]?.role === "user" && (
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shrink-0">
-                <Sparkles className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm text-muted-foreground">A pensar...</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

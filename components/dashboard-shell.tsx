@@ -61,7 +61,7 @@ const NAV_ITEMS = [
   { href: "/comparacao", icon: GitCompareArrows, label: "Comparação" },
   { href: "/relatorios", icon: PieChartIcon, label: "Relatórios" },
   { href: "/previsao", icon: TrendingUpIcon, label: "Previsão" },
-  { href: "/assinaturas", icon: CalendarClockIcon, label: "Assinaturas" },
+  { href: "/assinaturas", icon: CalendarClockIcon, label: "Recorrentes" },
   { href: "/regras", icon: Zap, label: "Automações" },
 ]
 
