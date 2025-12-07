@@ -25,6 +25,7 @@ interface Message {
   id: string
   role: "user" | "assistant"
   content: string
+  toolResults?: any[]
 }
 
 interface AIChatbotProps {
@@ -51,14 +52,14 @@ const topicQuestions = {
     "O que são ETFs e como funcionam?",
     "Quanto do meu salário devo investir?",
     "Qual a diferença entre ações e fundos?",
-    "É melhor investir tudo de uma vez ou aos poucos?",
+    "Simula investir 200€/mês durante 20 anos a 7%",
   ],
   poupar: [
     "Onde posso cortar despesas?",
     "Como aplicar a regra 50/30/20?",
     "Quanto devo ter em fundo de emergência?",
     "Quais despesas posso eliminar?",
-    "Como automatizar a minha poupança?",
+    "Analisa as minhas despesas por categoria",
   ],
   aprender: [
     "O que são juros compostos?",
@@ -82,15 +83,16 @@ export function AIChatbot({ onClose }: AIChatbotProps) {
     {
       id: "welcome",
       role: "assistant",
-      content: `Olá! Sou o assistente financeiro do CashBoard, powered by Claude.
+      content: `Olá! Sou o **CashBot**, o teu assistente financeiro inteligente.
 
-Posso ajudar-te com:
-• **Analisar as tuas finanças** - Saldo, despesas, receitas
-• **Dar conselhos personalizados** - Baseados nos teus dados reais
-• **Criar planos de poupança** - Estratégias para atingir metas
-• **Ensinar conceitos financeiros** - ETFs, juros compostos, etc.
+Tenho acesso aos teus dados financeiros e posso:
+• **Analisar** as tuas finanças em tempo real
+• **Calcular** juros compostos e poupanças
+• **Sugerir** onde cortar despesas
+• **Planear** como atingir metas mais rápido
+• **Ensinar** conceitos de investimento
 
-Escolhe um tema acima ou escreve a tua pergunta!`,
+Escolhe um tema acima ou pergunta-me qualquer coisa!`,
     },
   ])
   const [input, setInput] = useState("")
@@ -175,6 +177,7 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
         const lines = chunk.split("\n")
 
         for (const line of lines) {
+          // Parse text content (format: 0:"text")
           if (line.startsWith("0:")) {
             try {
               const textContent = JSON.parse(line.slice(2))
@@ -186,14 +189,24 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
                 scrollToBottom()
               }
             } catch {
+              // Try to extract text directly if JSON parse fails
               const text = line.slice(2).replace(/^"|"$/g, "")
-              if (text) {
+              if (text && text !== "undefined") {
                 fullContent += text
                 setMessages((prev) =>
                   prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: fullContent } : m)),
                 )
                 scrollToBottom()
               }
+            }
+          }
+          // Handle tool call results (format: 9: or a:)
+          else if (line.startsWith("9:") || line.startsWith("a:")) {
+            try {
+              const toolData = JSON.parse(line.slice(2))
+              console.log("[v0] Tool result:", toolData)
+            } catch {
+              // Ignore parse errors for tool data
             }
           }
         }
@@ -203,7 +216,10 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantMessage.id
-              ? { ...m, content: "Desculpa, não consegui processar a tua pergunta. Por favor tenta novamente." }
+              ? {
+                  ...m,
+                  content: "Desculpa, não consegui processar a tua pergunta. Tenta reformular ou pergunta outra coisa.",
+                }
               : m,
           ),
         )
@@ -215,7 +231,8 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
           m.id === assistantMessage.id
             ? {
                 ...m,
-                content: "Ocorreu um erro ao processar a tua pergunta. Verifica a tua conexão e tenta novamente.",
+                content:
+                  "Ocorreu um erro ao processar o teu pedido. Por favor verifica a tua conexão e tenta novamente.",
               }
             : m,
         ),
@@ -231,20 +248,41 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
   }
 
   const quickActions = [
-    { icon: Wallet, label: "Saldo", topic: "saldo" },
-    { icon: Target, label: "Metas", topic: "metas" },
-    { icon: TrendingUp, label: "Investir", topic: "investir" },
-    { icon: Lightbulb, label: "Poupar", topic: "poupar" },
-    { icon: GraduationCap, label: "Aprender", topic: "aprender" },
-    { icon: HelpCircle, label: "Ajuda", topic: "ajuda" },
+    { icon: Wallet, label: "Saldo", topic: "saldo", color: "text-emerald-500" },
+    { icon: Target, label: "Metas", topic: "metas", color: "text-blue-500" },
+    { icon: TrendingUp, label: "Investir", topic: "investir", color: "text-purple-500" },
+    { icon: Lightbulb, label: "Poupar", topic: "poupar", color: "text-amber-500" },
+    { icon: GraduationCap, label: "Aprender", topic: "aprender", color: "text-pink-500" },
+    { icon: HelpCircle, label: "Ajuda", topic: "ajuda", color: "text-gray-500" },
   ]
 
   const renderFormattedText = (text: string) => {
-    return text.split("\n").map((line, i) => (
-      <p key={i} className="mb-1 last:mb-0">
-        {line.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}
-      </p>
-    ))
+    return text.split("\n").map((line, i) => {
+      // Handle bullet points
+      if (line.startsWith("• ") || line.startsWith("- ")) {
+        const content = line.slice(2)
+        return (
+          <p key={i} className="mb-1 last:mb-0 pl-2 flex gap-2">
+            <span className="text-primary">•</span>
+            <span>{content.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}</span>
+          </p>
+        )
+      }
+      // Handle numbered lists
+      if (/^\d+\.\s/.test(line)) {
+        return (
+          <p key={i} className="mb-1 last:mb-0 pl-2">
+            {line.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}
+          </p>
+        )
+      }
+      // Regular paragraph
+      return (
+        <p key={i} className="mb-1 last:mb-0">
+          {line.split("**").map((part, j) => (j % 2 === 1 ? <strong key={j}>{part}</strong> : part))}
+        </p>
+      )
+    })
   }
 
   return (
@@ -256,8 +294,8 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
             <Sparkles className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
-            <h3 className="font-semibold">Assistente IA</h3>
-            <p className="text-xs text-muted-foreground">Powered by Claude</p>
+            <h3 className="font-semibold">CashBot</h3>
+            <p className="text-xs text-muted-foreground">Assistente Financeiro IA</p>
           </div>
         </div>
         {onClose && (
@@ -279,16 +317,16 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
                   className="h-auto py-2 px-3 flex flex-col gap-1 rounded-xl hover:bg-primary/10 hover:border-primary/30 bg-transparent"
                   disabled={isLoading}
                 >
-                  <action.icon className="h-4 w-4 text-primary" />
+                  <action.icon className={`h-4 w-4 ${action.color}`} />
                   <span className="text-xs flex items-center gap-1">
                     {action.label}
                     <ChevronDown className="h-3 w-3" />
                   </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuContent align="start" className="w-72">
                 {topicQuestions[action.topic as keyof typeof topicQuestions].map((question, idx) => (
-                  <DropdownMenuItem key={idx} onClick={() => sendMessage(question)} className="cursor-pointer">
+                  <DropdownMenuItem key={idx} onClick={() => sendMessage(question)} className="cursor-pointer text-sm">
                     {question}
                   </DropdownMenuItem>
                 ))}
@@ -309,7 +347,7 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
                 </div>
               )}
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                   message.role === "user"
                     ? "bg-primary text-primary-foreground rounded-br-md"
                     : "bg-muted rounded-bl-md"
@@ -320,7 +358,7 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
                 ) : (
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-muted-foreground">A pensar...</span>
+                    <span className="text-sm text-muted-foreground">A analisar...</span>
                   </div>
                 )}
               </div>
@@ -340,7 +378,7 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Escreve a tua pergunta..."
+            placeholder="Pergunta-me qualquer coisa sobre finanças..."
             disabled={isLoading}
             className="rounded-xl"
           />
@@ -348,6 +386,9 @@ Escolhe um tema acima ou escreve a tua pergunta!`,
             <SendIcon className="h-4 w-4" />
           </Button>
         </form>
+        <p className="text-[10px] text-muted-foreground text-center mt-2">
+          CashBot pode cometer erros. Verifica sempre informações importantes.
+        </p>
       </div>
     </div>
   )
