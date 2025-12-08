@@ -16,8 +16,8 @@ import {
   ArrowDownRight,
   Calendar,
   BarChart3,
-  PieChartIcon,
-  LineChartIcon,
+  PieChart,
+  LineChart,
   FileText,
   Download,
 } from "lucide-react"
@@ -25,180 +25,208 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 
-const COLORS = {
-  income: "#22c55e",
-  expense: "#ef4444",
-  investment: "#3b82f6",
-  savings: "#f59e0b",
-  primary: "#14b8a6",
-  categories: ["#14b8a6", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16"],
-}
+const COLORS = ["#14b8a6", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#ec4899", "#06b6d4", "#84cc16"]
 
 export function ReportsView() {
   const { transactions, accounts, goals, categories } = useFinance()
   const [selectedPeriod, setSelectedPeriod] = useState("year")
 
-  const getCategoryName = (categoryId: string): string => {
-    const category = categories.find((c) => c.id === categoryId)
-    return category?.name || categoryId
+  // Safe category name lookup
+  const getCategoryName = (categoryId: string | null | undefined): string => {
+    if (!categoryId) return "Outros"
+    const category = categories?.find((c) => c.id === categoryId)
+    return category?.name || "Outros"
   }
 
-  // Calculate yearly data
+  // Calculate yearly data with safety checks
   const yearlyData = useMemo(() => {
-    const now = new Date()
-    const months = eachMonthOfInterval({ start: startOfYear(now), end: endOfYear(now) })
+    try {
+      const now = new Date()
+      const months = eachMonthOfInterval({ start: startOfYear(now), end: endOfYear(now) })
 
-    return months.map((month) => {
-      const monthTrans = transactions.filter((t) => {
-        const d = new Date(t.date)
-        return d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear()
+      return months.map((month) => {
+        const monthTrans = (transactions || []).filter((t) => {
+          const d = new Date(t.date)
+          return d.getMonth() === month.getMonth() && d.getFullYear() === month.getFullYear()
+        })
+
+        const income = monthTrans.filter((t) => t.type === "income").reduce((acc, t) => acc + (t.amount || 0), 0)
+        const expenses = monthTrans.filter((t) => t.type === "expense").reduce((acc, t) => acc + (t.amount || 0), 0)
+
+        return {
+          name: format(month, "MMM", { locale: pt }),
+          receitas: income,
+          despesas: expenses,
+        }
       })
-
-      const income = monthTrans.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0)
-      const expenses = monthTrans.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0)
-
-      return {
-        name: format(month, "MMM", { locale: pt }),
-        receitas: income,
-        despesas: expenses,
-      }
-    })
+    } catch {
+      return []
+    }
   }, [transactions])
 
-  // Calculate category breakdown with proper names
+  // Calculate category breakdown with safety checks
   const categoryData = useMemo(() => {
-    const now = new Date()
-    const start = startOfMonth(now)
-    const end = endOfMonth(now)
+    try {
+      const now = new Date()
+      const start = startOfMonth(now)
+      const end = endOfMonth(now)
 
-    const monthExpenses = transactions.filter((t) => {
-      const d = new Date(t.date)
-      return t.type === "expense" && d >= start && d <= end
-    })
-
-    const totalExpenses = monthExpenses.reduce((acc, t) => acc + t.amount, 0)
-    const byCategory: Record<string, { amount: number; name: string }> = {}
-
-    monthExpenses.forEach((t) => {
-      const catId = t.category || "outros"
-      const catName = getCategoryName(catId)
-      if (!byCategory[catId]) {
-        byCategory[catId] = { amount: 0, name: catName }
-      }
-      byCategory[catId].amount += t.amount
-    })
-
-    return Object.entries(byCategory)
-      .sort(([, a], [, b]) => b.amount - a.amount)
-      .map(([id, data], index) => ({
-        id,
-        name: data.name,
-        value: data.amount,
-        color: COLORS.categories[index % COLORS.categories.length],
-        percentage: totalExpenses > 0 ? ((data.amount / totalExpenses) * 100).toFixed(1) : "0",
-      }))
-  }, [transactions, categories])
-
-  // Calculate trends (last 6 months)
-  const trendData = useMemo(() => {
-    const now = new Date()
-    const months = []
-
-    for (let i = 5; i >= 0; i--) {
-      const month = subMonths(now, i)
-      const start = startOfMonth(month)
-      const end = endOfMonth(month)
-
-      const monthTrans = transactions.filter((t) => {
-        const d = new Date(t.date)
-        return d >= start && d <= end
-      })
-
-      const income = monthTrans.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0)
-      const expenses = monthTrans.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0)
-
-      months.push({
-        name: format(month, "MMM", { locale: pt }),
-        receitas: income,
-        despesas: expenses,
-        saldo: income - expenses,
-      })
-    }
-
-    return months
-  }, [transactions])
-
-  // Calculate KPIs
-  const kpis = useMemo(() => {
-    const now = new Date()
-    const thisMonth = transactions.filter((t) => {
-      const d = new Date(t.date)
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    })
-
-    const lastMonth = transactions.filter((t) => {
-      const d = new Date(t.date)
-      const lastM = subMonths(now, 1)
-      return d.getMonth() === lastM.getMonth() && d.getFullYear() === lastM.getFullYear()
-    })
-
-    const thisIncome = thisMonth.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0)
-    const thisExpenses = thisMonth.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0)
-    const lastIncome = lastMonth.filter((t) => t.type === "income").reduce((acc, t) => acc + t.amount, 0)
-    const lastExpenses = lastMonth.filter((t) => t.type === "expense").reduce((acc, t) => acc + t.amount, 0)
-
-    const incomeChange = lastIncome > 0 ? ((thisIncome - lastIncome) / lastIncome) * 100 : 0
-    const expenseChange = lastExpenses > 0 ? ((thisExpenses - lastExpenses) / lastExpenses) * 100 : 0
-    const savingsRate = thisIncome > 0 ? ((thisIncome - thisExpenses) / thisIncome) * 100 : 0
-
-    const totalBalance = accounts.reduce((acc, a) => acc + (a.balance || 0), 0)
-    const totalSavings = accounts
-      .filter((a) => a.type === "savings" || a.type === "poupanca")
-      .reduce((acc, a) => acc + (a.balance || 0), 0)
-    const totalInvestments = accounts
-      .filter((a) => a.type === "investment" || a.type === "investimento")
-      .reduce((acc, a) => acc + (a.balance || 0), 0)
-
-    const goalsProgress =
-      goals.length > 0
-        ? goals.reduce((acc, g) => acc + (g.target_amount > 0 ? (g.current_amount / g.target_amount) * 100 : 0), 0) /
-          goals.length
-        : 0
-
-    return {
-      thisIncome,
-      thisExpenses,
-      incomeChange,
-      expenseChange,
-      savingsRate,
-      totalBalance,
-      totalSavings,
-      totalInvestments,
-      goalsProgress,
-      transactionsCount: thisMonth.length,
-    }
-  }, [transactions, accounts, goals])
-
-  // Top expenses with category names
-  const topExpenses = useMemo(() => {
-    const now = new Date()
-    const start = startOfMonth(now)
-    const end = endOfMonth(now)
-
-    return transactions
-      .filter((t) => {
+      const monthExpenses = (transactions || []).filter((t) => {
         const d = new Date(t.date)
         return t.type === "expense" && d >= start && d <= end
       })
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 5)
-      .map((t) => ({
-        ...t,
-        categoryName: getCategoryName(t.category),
-      }))
+
+      const totalExpenses = monthExpenses.reduce((acc, t) => acc + (t.amount || 0), 0)
+      const byCategory: Record<string, { amount: number; name: string }> = {}
+
+      monthExpenses.forEach((t) => {
+        const catId = t.category || "outros"
+        const catName = getCategoryName(catId)
+        if (!byCategory[catId]) {
+          byCategory[catId] = { amount: 0, name: catName }
+        }
+        byCategory[catId].amount += t.amount || 0
+      })
+
+      return Object.entries(byCategory)
+        .sort(([, a], [, b]) => b.amount - a.amount)
+        .map(([id, data], index) => ({
+          id,
+          name: data.name,
+          value: data.amount,
+          color: COLORS[index % COLORS.length],
+          percentage: totalExpenses > 0 ? ((data.amount / totalExpenses) * 100).toFixed(1) : "0",
+        }))
+    } catch {
+      return []
+    }
   }, [transactions, categories])
 
-  // Get max values for charts
+  // Calculate trends with safety checks
+  const trendData = useMemo(() => {
+    try {
+      const now = new Date()
+      const months = []
+
+      for (let i = 5; i >= 0; i--) {
+        const month = subMonths(now, i)
+        const start = startOfMonth(month)
+        const end = endOfMonth(month)
+
+        const monthTrans = (transactions || []).filter((t) => {
+          const d = new Date(t.date)
+          return d >= start && d <= end
+        })
+
+        const income = monthTrans.filter((t) => t.type === "income").reduce((acc, t) => acc + (t.amount || 0), 0)
+        const expenses = monthTrans.filter((t) => t.type === "expense").reduce((acc, t) => acc + (t.amount || 0), 0)
+
+        months.push({
+          name: format(month, "MMM", { locale: pt }),
+          receitas: income,
+          despesas: expenses,
+          saldo: income - expenses,
+        })
+      }
+
+      return months
+    } catch {
+      return []
+    }
+  }, [transactions])
+
+  // Calculate KPIs with safety checks
+  const kpis = useMemo(() => {
+    try {
+      const now = new Date()
+      const thisMonth = (transactions || []).filter((t) => {
+        const d = new Date(t.date)
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      })
+
+      const lastMonth = (transactions || []).filter((t) => {
+        const d = new Date(t.date)
+        const lastM = subMonths(now, 1)
+        return d.getMonth() === lastM.getMonth() && d.getFullYear() === lastM.getFullYear()
+      })
+
+      const thisIncome = thisMonth.filter((t) => t.type === "income").reduce((acc, t) => acc + (t.amount || 0), 0)
+      const thisExpenses = thisMonth.filter((t) => t.type === "expense").reduce((acc, t) => acc + (t.amount || 0), 0)
+      const lastIncome = lastMonth.filter((t) => t.type === "income").reduce((acc, t) => acc + (t.amount || 0), 0)
+      const lastExpenses = lastMonth.filter((t) => t.type === "expense").reduce((acc, t) => acc + (t.amount || 0), 0)
+
+      const incomeChange = lastIncome > 0 ? ((thisIncome - lastIncome) / lastIncome) * 100 : 0
+      const expenseChange = lastExpenses > 0 ? ((thisExpenses - lastExpenses) / lastExpenses) * 100 : 0
+      const savingsRate = thisIncome > 0 ? ((thisIncome - thisExpenses) / thisIncome) * 100 : 0
+
+      const totalBalance = (accounts || []).reduce((acc, a) => acc + (a.balance || 0), 0)
+      const totalSavings = (accounts || [])
+        .filter((a) => a.type === "savings" || a.type === "poupanca")
+        .reduce((acc, a) => acc + (a.balance || 0), 0)
+      const totalInvestments = (accounts || [])
+        .filter((a) => a.type === "investment" || a.type === "investimento")
+        .reduce((acc, a) => acc + (a.balance || 0), 0)
+
+      const goalsProgress =
+        (goals || []).length > 0
+          ? (goals || []).reduce(
+              (acc, g) => acc + (g.target_amount > 0 ? (g.current_amount / g.target_amount) * 100 : 0),
+              0,
+            ) / goals.length
+          : 0
+
+      return {
+        thisIncome,
+        thisExpenses,
+        incomeChange,
+        expenseChange,
+        savingsRate,
+        totalBalance,
+        totalSavings,
+        totalInvestments,
+        goalsProgress,
+        transactionsCount: thisMonth.length,
+      }
+    } catch {
+      return {
+        thisIncome: 0,
+        thisExpenses: 0,
+        incomeChange: 0,
+        expenseChange: 0,
+        savingsRate: 0,
+        totalBalance: 0,
+        totalSavings: 0,
+        totalInvestments: 0,
+        goalsProgress: 0,
+        transactionsCount: 0,
+      }
+    }
+  }, [transactions, accounts, goals])
+
+  // Top expenses with safety checks
+  const topExpenses = useMemo(() => {
+    try {
+      const now = new Date()
+      const start = startOfMonth(now)
+      const end = endOfMonth(now)
+
+      return (transactions || [])
+        .filter((t) => {
+          const d = new Date(t.date)
+          return t.type === "expense" && d >= start && d <= end
+        })
+        .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+        .slice(0, 5)
+        .map((t) => ({
+          ...t,
+          categoryName: getCategoryName(t.category),
+        }))
+    } catch {
+      return []
+    }
+  }, [transactions, categories])
+
+  // Calculate max values for charts with safety
   const maxYearlyValue = Math.max(...yearlyData.flatMap((d) => [d.receitas, d.despesas]), 1)
   const maxTrendValue = Math.max(...trendData.flatMap((d) => [d.receitas, d.despesas]), 1)
 
@@ -235,7 +263,7 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Receitas do Mês</p>
-                <p className="text-2xl font-bold text-emerald-600">€{kpis.thisIncome.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-emerald-600">{kpis.thisIncome.toFixed(2)} €</p>
               </div>
               <div
                 className={`flex items-center gap-1 text-xs ${kpis.incomeChange >= 0 ? "text-emerald-600" : "text-red-500"}`}
@@ -255,7 +283,7 @@ export function ReportsView() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Despesas do Mês</p>
-                <p className="text-2xl font-bold text-red-500">€{kpis.thisExpenses.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-red-500">{kpis.thisExpenses.toFixed(2)} €</p>
               </div>
               <div
                 className={`flex items-center gap-1 text-xs ${kpis.expenseChange <= 0 ? "text-emerald-600" : "text-red-500"}`}
@@ -299,7 +327,7 @@ export function ReportsView() {
                 <p className="text-2xl font-bold text-blue-600">{kpis.goalsProgress.toFixed(0)}%</p>
               </div>
               <Badge variant="outline" className="text-xs">
-                {goals.length} metas
+                {(goals || []).length} metas
               </Badge>
             </div>
             <div className="mt-2">
@@ -317,11 +345,11 @@ export function ReportsView() {
             <span className="hidden sm:inline">Geral</span>
           </TabsTrigger>
           <TabsTrigger value="trends" className="gap-2">
-            <LineChartIcon className="h-4 w-4" />
+            <LineChart className="h-4 w-4" />
             <span className="hidden sm:inline">Tendências</span>
           </TabsTrigger>
           <TabsTrigger value="categories" className="gap-2">
-            <PieChartIcon className="h-4 w-4" />
+            <PieChart className="h-4 w-4" />
             <span className="hidden sm:inline">Categorias</span>
           </TabsTrigger>
           <TabsTrigger value="details" className="gap-2">
@@ -345,8 +373,8 @@ export function ReportsView() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-medium w-12">{item.name}</span>
                         <div className="flex gap-4 text-xs">
-                          <span className="text-emerald-600">+€{item.receitas.toFixed(0)}</span>
-                          <span className="text-red-500">-€{item.despesas.toFixed(0)}</span>
+                          <span className="text-emerald-600">+{item.receitas.toFixed(0)}€</span>
+                          <span className="text-red-500">-{item.despesas.toFixed(0)}€</span>
                         </div>
                       </div>
                       <div className="flex gap-1 h-5">
@@ -388,7 +416,7 @@ export function ReportsView() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Total</p>
-                      <p className="font-bold">€{kpis.totalBalance.toFixed(2)}</p>
+                      <p className="font-bold">{kpis.totalBalance.toFixed(2)} €</p>
                     </div>
                   </div>
                 </div>
@@ -400,7 +428,7 @@ export function ReportsView() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Poupança</p>
-                      <p className="font-bold text-amber-600">€{kpis.totalSavings.toFixed(2)}</p>
+                      <p className="font-bold text-amber-600">{kpis.totalSavings.toFixed(2)} €</p>
                     </div>
                   </div>
                   <Badge variant="outline">
@@ -415,7 +443,7 @@ export function ReportsView() {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Investimentos</p>
-                      <p className="font-bold text-blue-600">€{kpis.totalInvestments.toFixed(2)}</p>
+                      <p className="font-bold text-blue-600">{kpis.totalInvestments.toFixed(2)} €</p>
                     </div>
                   </div>
                   <Badge variant="outline">
@@ -446,12 +474,13 @@ export function ReportsView() {
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{item.name}</span>
                       <span className={`text-sm font-bold ${item.saldo >= 0 ? "text-emerald-600" : "text-red-500"}`}>
-                        {item.saldo >= 0 ? "+" : ""}€{item.saldo.toFixed(0)}
+                        {item.saldo >= 0 ? "+" : ""}
+                        {item.saldo.toFixed(0)} €
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <div className="text-xs text-muted-foreground mb-1">Receitas: €{item.receitas.toFixed(0)}</div>
+                        <div className="text-xs text-muted-foreground mb-1">Receitas: {item.receitas.toFixed(0)} €</div>
                         <div className="h-3 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full bg-emerald-500 rounded-full transition-all duration-500"
@@ -460,7 +489,7 @@ export function ReportsView() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground mb-1">Despesas: €{item.despesas.toFixed(0)}</div>
+                        <div className="text-xs text-muted-foreground mb-1">Despesas: {item.despesas.toFixed(0)} €</div>
                         <div className="h-3 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full bg-red-500 rounded-full transition-all duration-500"
@@ -485,27 +514,28 @@ export function ReportsView() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {categoryData.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3">
-                    <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium truncate">{item.name}</span>
-                        <span className="text-sm text-muted-foreground">€{item.value.toFixed(2)}</span>
+                {categoryData.length > 0 ? (
+                  categoryData.map((item) => (
+                    <div key={item.id} className="flex items-center gap-3">
+                      <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium truncate">{item.name}</span>
+                          <span className="text-sm text-muted-foreground">{item.value.toFixed(2)} €</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden mt-1">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${item.percentage}%`, backgroundColor: item.color }}
-                        />
-                      </div>
+                      <Badge variant="outline" className="text-xs flex-shrink-0">
+                        {item.percentage}%
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="text-xs flex-shrink-0">
-                      {item.percentage}%
-                    </Badge>
-                  </div>
-                ))}
-                {categoryData.length === 0 && (
+                  ))
+                ) : (
                   <p className="text-center text-muted-foreground py-8">Sem despesas registadas este mês</p>
                 )}
               </div>
@@ -523,21 +553,22 @@ export function ReportsView() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {topExpenses.map((expense, index) => (
-                    <div key={expense.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
-                      <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 font-bold text-sm">
-                        {index + 1}
+                  {topExpenses.length > 0 ? (
+                    topExpenses.map((expense, index) => (
+                      <div key={expense.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                        <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-500 font-bold text-sm">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{expense.description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {expense.categoryName} • {format(new Date(expense.date), "d MMM", { locale: pt })}
+                          </p>
+                        </div>
+                        <p className="font-bold text-red-500">{expense.amount.toFixed(2)} €</p>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{expense.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {expense.categoryName} • {format(new Date(expense.date), "d MMM", { locale: pt })}
-                        </p>
-                      </div>
-                      <p className="font-bold text-red-500">€{expense.amount.toFixed(2)}</p>
-                    </div>
-                  ))}
-                  {topExpenses.length === 0 && (
+                    ))
+                  ) : (
                     <p className="text-center text-muted-foreground py-8">Sem despesas registadas este mês</p>
                   )}
                 </div>
@@ -551,30 +582,31 @@ export function ReportsView() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {goals.map((goal) => {
-                    const progress = goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0
-                    return (
-                      <div key={goal.id} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{goal.name}</span>
-                          <span className="text-sm text-muted-foreground">
-                            €{goal.current_amount.toFixed(2)} / €{goal.target_amount.toFixed(2)}
-                          </span>
+                  {(goals || []).length > 0 ? (
+                    (goals || []).map((goal) => {
+                      const progress = goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0
+                      return (
+                        <div key={goal.id} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{goal.name}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {goal.current_amount.toFixed(2)} € / {goal.target_amount.toFixed(2)} €
+                            </span>
+                          </div>
+                          <div className="h-3 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-500"
+                              style={{ width: `${Math.min(progress, 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{progress.toFixed(1)}% concluído</span>
+                            <span>Faltam {Math.max(goal.target_amount - goal.current_amount, 0).toFixed(2)} €</span>
+                          </div>
                         </div>
-                        <div className="h-3 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-500"
-                            style={{ width: `${Math.min(progress, 100)}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>{progress.toFixed(1)}% concluído</span>
-                          <span>Faltam €{Math.max(goal.target_amount - goal.current_amount, 0).toFixed(2)}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {goals.length === 0 && (
+                      )
+                    })
+                  ) : (
                     <p className="text-center text-muted-foreground py-8">Nenhuma meta definida</p>
                   )}
                 </div>
