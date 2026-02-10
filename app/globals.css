@@ -1,0 +1,300 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Light Mode - Premium Finance Aesthetic */
+  --background: #f8f6f3;
+  --foreground: #1a1410;
+  --card: #ffffff;
+  --card-foreground: #1a1410;
+  --popover: #ffffff;
+  --popover-foreground: #1a1410;
+  --primary: #10b981;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ede9;
+  --secondary-foreground: #44403c;
+  --muted: #e8e4df;
+  --muted-foreground: #78716c;
+  --accent: #06b6d4;
+  --accent-foreground: #082f4f;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e0dbd5;
+  --input: #f3efe9;
+  --ring: #10b981;
+
+  --radius: 1rem;
+
+  /* Finance Specific Colors */
+  --income: #059669;
+  --expense: #dc2626;
+  --investment: #8b5cf6;
+  --savings: #0891b2;
+
+  /* Charts */
+  --chart-1: #10b981;
+  --chart-2: #f97316;
+  --chart-3: #8b5cf6;
+  --chart-4: #0891b2;
+  --chart-5: #ec4899;
+
+  /* Sidebar */
+  --sidebar: #1a1410;
+  --sidebar-foreground: #fafaf9;
+  --sidebar-primary: #10b981;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2420;
+  --sidebar-accent-foreground: #fafaf9;
+  --sidebar-border: #2a2420;
+  --sidebar-ring: #10b981;
+}
+
+.dark {
+  /* Dark Mode - Modern Premium Finance */
+  --background: #05050a;
+  --foreground: #fefdf9;
+  --card: #0f0d0a;
+  --card-foreground: #fefdf9;
+  --popover: #0f0d0a;
+  --popover-foreground: #fefdf9;
+  --primary: #10b981;
+  --primary-foreground: #051c15;
+  --secondary: #1a1815;
+  --secondary-foreground: #fefdf9;
+  --muted: #252220;
+  --muted-foreground: #a8a29e;
+  --accent: #06b6d4;
+  --accent-foreground: #082f4f;
+  --destructive: #f87171;
+  --destructive-foreground: #1f1f1f;
+  --border: #2a2420;
+  --input: #1a1815;
+  --ring: #10b981;
+
+  /* Finance Colors - Vibrant */
+  --income: #34d399;
+  --expense: #f87171;
+  --investment: #c084fc;
+  --savings: #22d3ee;
+
+  /* Charts */
+  --chart-1: #10b981;
+  --chart-2: #fb923c;
+  --chart-3: #c084fc;
+  --chart-4: #22d3ee;
+  --chart-5: #f472b6;
+
+  /* Sidebar */
+  --sidebar: #05050a;
+  --sidebar-foreground: #fefdf9;
+  --sidebar-primary: #10b981;
+  --sidebar-primary-foreground: #051c15;
+  --sidebar-accent: #1a1815;
+  --sidebar-accent-foreground: #fefdf9;
+  --sidebar-border: #2a2420;
+  --sidebar-ring: #10b981;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), "Geist", sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", monospace;
+  --font-serif: var(--font-playfair), "Playfair Display", serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-income: var(--income);
+  --color-expense: var(--expense);
+  --color-investment: var(--investment);
+  --color-savings: var(--savings);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Premium animations */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.5);
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation: animateIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes animateIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Stagger animation for lists */
+  .stagger-1 {
+    animation-delay: 50ms;
+  }
+  .stagger-2 {
+    animation-delay: 100ms;
+  }
+  .stagger-3 {
+    animation-delay: 150ms;
+  }
+  .stagger-4 {
+    animation-delay: 200ms;
+  }
+  .stagger-5 {
+    animation-delay: 250ms;
+  }
+
+  /* Glassmorphism utility - Premium effect */
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .dark .glass {
+    background: rgba(15, 13, 10, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Premium card with depth */
+  .card-premium {
+    @apply relative overflow-hidden rounded-2xl border border-border/50 bg-card shadow-lg;
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%);
+  }
+
+  /* Hover lift effect */
+  .hover-lift {
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.15);
+  }
+
+  .dark .hover-lift:hover {
+    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Glow effect for primary elements */
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+  }
+
+  .glow-primary-pulse {
+    animation: glow-pulse 3s ease-in-out infinite;
+  }
+
+  .dark .glow-primary {
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+  }
+
+  /* Float animation */
+  .animate-float {
+    animation: float 4s ease-in-out infinite;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, #10b981 0%, #0891b2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Shimmer effect */
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Subtle animations for financial metrics */
+  .metric-card {
+    @apply relative p-6 rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm hover:bg-card transition-all duration-300;
+  }
+
+  .metric-card:hover {
+    @apply border-primary/30 shadow-lg;
+  }
+
+  /* Blur effect for depth */
+  .blur-sm-custom {
+    backdrop-filter: blur(8px);
+  }
+}
