@@ -4,97 +4,97 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Light Mode - Warm sand/terracotta palette inspired by Awwwards */
-  --background: #f5f0e8;
-  --foreground: #1c1917;
-  --card: #faf7f2;
-  --card-foreground: #1c1917;
-  --popover: #faf7f2;
-  --popover-foreground: #1c1917;
-  --primary: #0d9488;
+  /* Light Mode - Premium Finance Aesthetic */
+  --background: #f8f6f3;
+  --foreground: #1a1410;
+  --card: #ffffff;
+  --card-foreground: #1a1410;
+  --popover: #ffffff;
+  --popover-foreground: #1a1410;
+  --primary: #10b981;
   --primary-foreground: #ffffff;
-  --secondary: #e7e0d5;
+  --secondary: #f0ede9;
   --secondary-foreground: #44403c;
-  --muted: #ebe5db;
+  --muted: #e8e4df;
   --muted-foreground: #78716c;
-  --accent: #d6cfc3;
-  --accent-foreground: #0f766e;
-  --destructive: #dc2626;
+  --accent: #06b6d4;
+  --accent-foreground: #082f4f;
+  --destructive: #ef4444;
   --destructive-foreground: #ffffff;
-  --border: #d6cfc3;
-  --input: #d6cfc3;
-  --ring: #0d9488;
+  --border: #e0dbd5;
+  --input: #f3efe9;
+  --ring: #10b981;
 
-  --radius: 0.75rem;
+  --radius: 1rem;
 
   /* Finance Specific Colors */
   --income: #059669;
   --expense: #dc2626;
-  --investment: #7c3aed;
+  --investment: #8b5cf6;
   --savings: #0891b2;
 
   /* Charts */
-  --chart-1: #0d9488;
+  --chart-1: #10b981;
   --chart-2: #f97316;
-  --chart-3: #7c3aed;
+  --chart-3: #8b5cf6;
   --chart-4: #0891b2;
   --chart-5: #ec4899;
 
   /* Sidebar */
-  --sidebar: #1c1917;
+  --sidebar: #1a1410;
   --sidebar-foreground: #fafaf9;
-  --sidebar-primary: #0d9488;
+  --sidebar-primary: #10b981;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #292524;
+  --sidebar-accent: #2a2420;
   --sidebar-accent-foreground: #fafaf9;
-  --sidebar-border: #292524;
-  --sidebar-ring: #0d9488;
+  --sidebar-border: #2a2420;
+  --sidebar-ring: #10b981;
 }
 
 .dark {
-  /* Dark Mode - Deep emerald/noir aesthetic */
-  --background: #0c0a09;
-  --foreground: #fafaf9;
-  --card: #1c1917;
-  --card-foreground: #fafaf9;
-  --popover: #1c1917;
-  --popover-foreground: #fafaf9;
-  --primary: #2dd4bf;
-  --primary-foreground: #042f2e;
-  --secondary: #292524;
-  --secondary-foreground: #fafaf9;
-  --muted: #292524;
+  /* Dark Mode - Modern Premium Finance */
+  --background: #05050a;
+  --foreground: #fefdf9;
+  --card: #0f0d0a;
+  --card-foreground: #fefdf9;
+  --popover: #0f0d0a;
+  --popover-foreground: #fefdf9;
+  --primary: #10b981;
+  --primary-foreground: #051c15;
+  --secondary: #1a1815;
+  --secondary-foreground: #fefdf9;
+  --muted: #252220;
   --muted-foreground: #a8a29e;
-  --accent: #44403c;
-  --accent-foreground: #2dd4bf;
-  --destructive: #991b1b;
-  --destructive-foreground: #fecaca;
-  --border: #44403c;
-  --input: #44403c;
-  --ring: #2dd4bf;
+  --accent: #06b6d4;
+  --accent-foreground: #082f4f;
+  --destructive: #f87171;
+  --destructive-foreground: #1f1f1f;
+  --border: #2a2420;
+  --input: #1a1815;
+  --ring: #10b981;
 
-  /* Finance Colors - Vibrant on dark */
+  /* Finance Colors - Vibrant */
   --income: #34d399;
   --expense: #f87171;
-  --investment: #a78bfa;
+  --investment: #c084fc;
   --savings: #22d3ee;
 
   /* Charts */
-  --chart-1: #2dd4bf;
+  --chart-1: #10b981;
   --chart-2: #fb923c;
-  --chart-3: #a78bfa;
+  --chart-3: #c084fc;
   --chart-4: #22d3ee;
   --chart-5: #f472b6;
 
   /* Sidebar */
-  --sidebar: #0c0a09;
-  --sidebar-foreground: #fafaf9;
-  --sidebar-primary: #2dd4bf;
-  --sidebar-primary-foreground: #042f2e;
-  --sidebar-accent: #1c1917;
-  --sidebar-accent-foreground: #fafaf9;
-  --sidebar-border: #292524;
-  --sidebar-ring: #2dd4bf;
+  --sidebar: #05050a;
+  --sidebar-foreground: #fefdf9;
+  --sidebar-primary: #10b981;
+  --sidebar-primary-foreground: #051c15;
+  --sidebar-accent: #1a1815;
+  --sidebar-accent-foreground: #fefdf9;
+  --sidebar-border: #2a2420;
+  --sidebar-ring: #10b981;
 }
 
 @theme inline {
@@ -152,13 +152,33 @@
   }
 }
 
-/* Premium animations inspired by Awwwards */
+/* Premium animations */
 @keyframes shimmer {
   0% {
     transform: translateX(-100%);
   }
   100% {
     transform: translateX(100%);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.5);
   }
 }
 
@@ -195,61 +215,86 @@
     animation-delay: 250ms;
   }
 
-  /* Glassmorphism utility */
+  /* Glassmorphism utility - Premium effect */
   .glass {
-    background: rgba(250, 247, 242, 0.8);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .dark .glass {
-    background: rgba(28, 25, 23, 0.8);
+    background: rgba(15, 13, 10, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  /* Premium hover effect */
+  /* Premium card with depth */
+  .card-premium {
+    @apply relative overflow-hidden rounded-2xl border border-border/50 bg-card shadow-lg;
+    background: linear-gradient(135deg, hsl(var(--background)) 0%, hsl(var(--card)) 100%);
+  }
+
+  /* Hover lift effect */
   .hover-lift {
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .hover-lift:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.15);
+    transform: translateY(-6px);
+    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.15);
   }
 
   .dark .hover-lift:hover {
-    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.4);
   }
 
   /* Glow effect for primary elements */
   .glow-primary {
-    box-shadow: 0 0 20px rgba(13, 148, 136, 0.3);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+  }
+
+  .glow-primary-pulse {
+    animation: glow-pulse 3s ease-in-out infinite;
   }
 
   .dark .glow-primary {
-    box-shadow: 0 0 20px rgba(45, 212, 191, 0.3);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+  }
+
+  /* Float animation */
+  .animate-float {
+    animation: float 4s ease-in-out infinite;
   }
 
   /* Gradient text */
   .gradient-text {
-    background: linear-gradient(135deg, #0d9488 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, #10b981 0%, #0891b2 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  /* Noise texture overlay */
-  .noise::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    opacity: 0.03;
-    pointer-events: none;
-    z-index: 1;
-  }
-
   /* Shimmer effect */
   .animate-shimmer {
     animation: shimmer 2s infinite;
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Subtle animations for financial metrics */
+  .metric-card {
+    @apply relative p-6 rounded-2xl border border-border/40 bg-card/50 backdrop-blur-sm hover:bg-card transition-all duration-300;
+  }
+
+  .metric-card:hover {
+    @apply border-primary/30 shadow-lg;
+  }
+
+  /* Blur effect for depth */
+  .blur-sm-custom {
+    backdrop-filter: blur(8px);
   }
 }
